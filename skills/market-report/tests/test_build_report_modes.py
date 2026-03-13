@@ -40,10 +40,11 @@ class BuildReportModesTests(unittest.TestCase):
         self.assertEqual(brief["layoutFamily"], "layered-signal-grid")
         self.assertEqual(brief["visualPriority"], "visual-first")
         self.assertEqual(len(brief["sections"]), 2)
-        self.assertEqual(brief["sections"][0]["blocks"][0]["title"], "1. 宏观环境")
+        self.assertEqual(brief["sections"][0]["blocks"][0]["title"], "宏观环境")
         self.assertIn("hero", brief)
         self.assertIn("cards", brief)
         self.assertGreaterEqual(len(brief["cards"]), 4)
+        self.assertTrue(all("visualType" in card for card in brief["cards"]))
 
 
 if __name__ == "__main__":

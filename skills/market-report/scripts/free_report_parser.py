@@ -20,6 +20,15 @@ MULTI_ASSET_HINTS = [
     "原油",
     "商品",
 ]
+GENERIC_EXPLAINER_HINTS = [
+    "趋势",
+    "变化",
+    "策略",
+    "方法",
+    "路径",
+    "原因",
+    "影响",
+]
 
 
 def split_sentences(text: str) -> list[str]:
@@ -54,6 +63,22 @@ def dedupe(items: list[str], limit: int | None = None) -> list[str]:
     return seen
 
 
+def compact_title(text: str) -> str:
+    title = re.sub(r"^\d+[\.、]\s*", "", text.strip())
+    for separator in ["：", ":"]:
+        if separator in title:
+            return title.split(separator, 1)[0].strip()
+    return title
+
+
+def extract_inline_claim(text: str) -> str:
+    stripped = re.sub(r"^\d+[\.、]\s*", "", text.strip())
+    for separator in ["：", ":"]:
+        if separator in stripped:
+            return stripped.split(separator, 1)[1].strip()
+    return ""
+
+
 def classify_content_type(lines: list[str], sections: list[dict[str, Any]]) -> str:
     score_lines = sum(1 for line in lines if SCORE_LINE_RE.match(line))
     scenario_lines = sum(1 for line in lines if SCENARIO_LINE_RE.match(line))
@@ -69,7 +94,10 @@ def classify_content_type(lines: list[str], sections: list[dict[str, Any]]) -> s
     if any(any(keyword in title for keyword in ["宏观", "中观", "微观"]) for title in section_titles):
         return "layered-viewpoint"
 
-    return "layered-viewpoint"
+    if any(any(keyword in line for keyword in GENERIC_EXPLAINER_HINTS) for line in lines):
+        return "generic-explainer"
+
+    return "generic-explainer"
 
 
 def layout_family_for(content_type: str) -> str:
@@ -77,6 +105,8 @@ def layout_family_for(content_type: str) -> str:
         return "comparison-boards"
     if content_type == "score-evaluation":
         return "scorecards-with-probabilities"
+    if content_type == "generic-explainer":
+        return "story-cards"
     return "layered-signal-grid"
 
 
@@ -100,23 +130,64 @@ def build_hero(title: str, summary: list[str], content_type: str, sections: list
         "layered-viewpoint": "分层观点总览",
         "multi-asset-comparison": "多资产对比速览",
         "score-evaluation": "评分结论速览",
+        "generic-explainer": "核心观点速览",
     }
     return {
         "type": "hero-summary-card",
         "eyebrow": eyebrow_map.get(content_type, "自由研报速览"),
         "headline": headline,
         "highlights": highlights,
+        "claim": headline,
+        "visualType": "constellation",
+        "visualData": {
+            "nodes": [
+                {"label": item[:10], "value": 1 + index}
+                for index, item in enumerate([headline, *highlights][:4])
+            ]
+        },
     }
 
 
-def make_insight_card(section_title: str, block: dict[str, Any], emphasis: str = "normal") -> dict[str, Any]:
+def infer_visual_for_text(text: str, bullets: list[str], content_type: str) -> tuple[str, dict[str, Any]]:
+    combined = f"{text} {' '.join(bullets)}"
+    if any(keyword in combined for keyword in ["转向", "路径", "流程", "阶段", "验证", "变化"]):
+        return "mini-flow", {"steps": dedupe([text, *bullets], limit=4)}
+    if any(keyword in combined for keyword in ["风险", "扰动", "波动", "谨慎", "承压"]):
+        return (
+            "signal-bar",
+            {
+                "signals": [
+                    {"label": item[:12], "value": 62 + index * 8}
+                    for index, item in enumerate(dedupe([text, *bullets], limit=4))
+                ]
+            },
+        )
+    if content_type == "generic-explainer":
+        return "mini-flow", {"steps": dedupe([text, *bullets], limit=4)}
+    return (
+        "dot-matrix",
+        {
+            "items": [
+                {"label": item[:12], "value": 2 + (index % 4)}
+                for index, item in enumerate(dedupe([text, *bullets], limit=4))
+            ]
+        },
+    )
+
+
+def make_insight_card(section_title: str, block: dict[str, Any], content_type: str, emphasis: str = "normal") -> dict[str, Any]:
+    claim = block.get("claim") or block.get("summary", "") or block["title"]
+    visual_type, visual_data = infer_visual_for_text(claim, block.get("bullets", [])[:4], content_type)
     return {
         "type": "insight-card",
         "sectionTitle": section_title,
         "title": block["title"],
+        "claim": claim,
         "summary": block.get("summary", ""),
         "bullets": block.get("bullets", [])[:4],
         "emphasis": emphasis,
+        "visualType": visual_type,
+        "visualData": visual_data,
     }
 
 
@@ -134,11 +205,14 @@ def build_cards(
                 "type": "section-header-card",
                 "title": section["title"],
                 "summary": section.get("lead", ""),
+                "claim": section.get("lead", ""),
+                "visualType": "section-divider",
+                "visualData": {"label": section["title"]},
             }
         )
         blocks = section.get("blocks", [])
         for index, block in enumerate(blocks):
-            cards.append(make_insight_card(section["title"], block, emphasis="hero" if index == 0 else "normal"))
+            cards.append(make_insight_card(section["title"], block, content_type, emphasis="hero" if index == 0 else "normal"))
 
     if content_type == "multi-asset-comparison":
         comparison_items = []
@@ -155,7 +229,15 @@ def build_cards(
             {
                 "type": "comparison-card",
                 "title": "核心资产对比",
+                "claim": "用一屏看清不同对象的强弱和侧重点。",
                 "items": comparison_items,
+                "visualType": "comparison-strip",
+                "visualData": {
+                    "items": [
+                        {"label": item["label"], "value": 72 - idx * 10}
+                        for idx, item in enumerate(comparison_items)
+                    ]
+                },
             },
         )
 
@@ -176,7 +258,12 @@ def build_cards(
             {
                 "type": "mini-bar-card",
                 "title": "评分焦点",
+                "claim": "把主要判断先压缩成一组可扫读的强弱信号。",
                 "items": metrics or [{"label": "综合信号", "value": 68}],
+                "visualType": "signal-bar",
+                "visualData": {
+                    "signals": metrics or [{"label": "综合信号", "value": 68}],
+                },
             },
         )
         cards.insert(
@@ -184,11 +271,20 @@ def build_cards(
             {
                 "type": "probability-card",
                 "title": "情景分布",
+                "claim": "重点不是精确预测，而是先建立概率感。",
                 "items": probabilities or [
                     {"label": "乐观情景", "value": 25},
                     {"label": "中性情景", "value": 50},
                     {"label": "悲观情景", "value": 25},
                 ],
+                "visualType": "probability-strip",
+                "visualData": {
+                    "items": probabilities or [
+                        {"label": "乐观情景", "value": 25},
+                        {"label": "中性情景", "value": 50},
+                        {"label": "悲观情景", "value": 25},
+                    ]
+                },
             },
         )
 
@@ -198,7 +294,28 @@ def build_cards(
             {
                 "type": "signal-card",
                 "title": "关键线索",
+                "claim": "先抓住全局判断，再往下看分区展开。",
                 "items": summary[:3],
+                "visualType": "signal-bar",
+                "visualData": {
+                    "signals": [
+                        {"label": item[:12], "value": 78 - idx * 10}
+                        for idx, item in enumerate(summary[:3])
+                    ]
+                },
+            },
+        )
+
+    if content_type == "generic-explainer":
+        cards.insert(
+            1,
+            {
+                "type": "signal-card",
+                "title": "理解路径",
+                "claim": "先理解变化，再看应对动作。",
+                "items": summary[:3],
+                "visualType": "mini-flow",
+                "visualData": {"steps": summary[:4]},
             },
         )
 
@@ -238,10 +355,12 @@ def parse_free_report_text(source_text: str, user_intent: str | None = None) -> 
 
         subsection_match = SUBSECTION_RE.match(line)
         if subsection_match and current_section is not None:
+            inline_claim = extract_inline_claim(line)
             block = {
                 "type": "insight-card",
-                "title": line,
-                "summary": "",
+                "title": compact_title(line),
+                "claim": inline_claim,
+                "summary": inline_claim,
                 "bullets": [],
             }
             current_section["blocks"].append(block)
@@ -258,6 +377,8 @@ def parse_free_report_text(source_text: str, user_intent: str | None = None) -> 
             if not current_block["summary"]:
                 current_block["summary"] = join_summary(sentences, max_sentences=2) or line
                 current_block["bullets"] = bullet_candidates(sentences, start=2, limit=4)
+                if not current_block.get("claim"):
+                    current_block["claim"] = join_summary(sentences, max_sentences=1) or line
             else:
                 current_block["bullets"].extend(sentence for sentence in sentences if sentence)
                 current_block["bullets"] = current_block["bullets"][:4]

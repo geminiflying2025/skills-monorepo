@@ -39,6 +39,7 @@ class FreeReportParserTests(unittest.TestCase):
         self.assertIn("cards", result)
         self.assertGreaterEqual(len(result["cards"]), 4)
         self.assertEqual(result["cards"][0]["type"], "hero-summary-card")
+        self.assertIn("visualType", result["cards"][0])
         self.assertIn("内需托底", result["sections"][0]["blocks"][0]["summary"])
         self.assertTrue(result["sections"][0]["blocks"][0]["bullets"])
 
@@ -58,6 +59,7 @@ class FreeReportParserTests(unittest.TestCase):
         self.assertEqual(result["contentType"], "multi-asset-comparison")
         self.assertEqual(result["layoutFamily"], "comparison-boards")
         self.assertTrue(any(card["type"] == "comparison-card" for card in result["cards"]))
+        self.assertTrue(any(card.get("visualType") == "comparison-strip" for card in result["cards"]))
 
     def test_parse_detects_score_evaluation(self):
         module = load_module()
@@ -77,6 +79,27 @@ class FreeReportParserTests(unittest.TestCase):
         self.assertEqual(result["layoutFamily"], "scorecards-with-probabilities")
         self.assertTrue(any(card["type"] == "probability-card" for card in result["cards"]))
         self.assertTrue(any(card["type"] == "mini-bar-card" for card in result["cards"]))
+
+    def test_parse_detects_generic_explainer_and_svg_visuals(self):
+        module = load_module()
+        result = module.parse_free_report_text(
+            """AI 搜索正在改变内容分发
+一、变化趋势
+1. 用户行为
+用户越来越少点击传统链接，更倾向于直接获取答案。
+2. 内容生产
+内容需要更结构化，方便模型抽取和重组。
+二、应对策略
+1. 内容改造
+把长段落改造成结论、清单和可引用模块。
+2. 分发方式
+同时兼顾搜索、社交平台和模型引用场景。"""
+        )
+        self.assertEqual(result["contentType"], "generic-explainer")
+        self.assertEqual(result["layoutFamily"], "story-cards")
+        self.assertTrue(all("visualType" in card for card in result["cards"]))
+        self.assertTrue(all("visualData" in card for card in result["cards"]))
+        self.assertTrue(any(card.get("visualType") == "mini-flow" for card in result["cards"]))
 
 
 if __name__ == "__main__":

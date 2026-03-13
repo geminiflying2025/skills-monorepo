@@ -13,6 +13,7 @@ TS_TYPES = dedent(
     export type FreeReportBlock = {
       type: string;
       title: string;
+      claim?: string;
       summary?: string;
       bullets?: string[];
     };
@@ -35,17 +36,23 @@ TS_TYPES = dedent(
         eyebrow?: string;
         headline: string;
         highlights?: string[];
+        claim?: string;
+        visualType?: string;
+        visualData?: any;
       };
       cards: Array<{
         type: string;
         title?: string;
         sectionTitle?: string;
+        claim?: string;
         summary?: string;
         bullets?: string[];
         items?: Array<{ label?: string; value?: string | number } | string>;
         emphasis?: string;
         headline?: string;
         highlights?: string[];
+        visualType?: string;
+        visualData?: any;
       }>;
       sections: FreeReportSection[];
       referenceImages?: string[];
@@ -60,7 +67,7 @@ APP_TEMPLATE = dedent(
     import { toPng } from 'html-to-image';
     import { FREE_REPORT_BRIEF } from './constants';
 
-    const ACCENTS = ['#1D4ED8', '#0F766E', '#7C3AED', '#EA580C', '#DB2777'];
+    const ACCENTS = ['#2563EB', '#14B8A6', '#7C3AED', '#F59E0B', '#EC4899'];
 
     function splitHighlights(items: string[]) {
       const lead = items[0] || '';
@@ -73,10 +80,7 @@ APP_TEMPLATE = dedent(
         if (typeof item === 'string') {
           return { label: item, value: '' };
         }
-        return {
-          label: item.label || '',
-          value: item.value ?? '',
-        };
+        return { label: item.label || '', value: item.value ?? '' };
       });
     }
 
@@ -90,53 +94,120 @@ APP_TEMPLATE = dedent(
       if (type === 'comparison-card') return 'col-span-12';
       if (type === 'signal-card') return 'col-span-5';
       if (type === 'mini-bar-card' || type === 'probability-card') return 'col-span-6';
-      if (type === 'risk-card') return 'col-span-4';
       if (emphasis === 'hero') return 'col-span-8';
       return 'col-span-4';
     }
 
-    function MetricBars({ items, accent }: { items: Array<{ label: string; value: string | number }>; accent: string }) {
+    function SvgDots({ items, accent }: { items: Array<{ label?: string; value?: number }>; accent: string }) {
       return (
-        <div className="space-y-4">
-          {items.map((item, index) => {
-            const raw = typeof item.value === 'number' ? item.value : Number(item.value || 0);
-            const width = Number.isFinite(raw) ? Math.max(12, Math.min(100, raw)) : 48;
+        <svg viewBox="0 0 320 120" className="h-[120px] w-full">
+          {items.slice(0, 4).map((item, row) => {
+            const active = Number(item.value || 2);
             return (
-              <div key={index}>
-                <div className="mb-2 flex items-center justify-between text-[13px] font-semibold text-slate-500">
-                  <span>{item.label}</span>
-                  <span className="text-slate-900">{item.value || '--'}</span>
-                </div>
-                <div className="h-2.5 rounded-full bg-slate-100">
-                  <div className="h-2.5 rounded-full" style={{ width: `${width}%`, background: accent }} />
-                </div>
-              </div>
+              <g key={row} transform={`translate(0, ${10 + row * 26})`}>
+                <text x="0" y="12" fontSize="11" fill="#64748B">{item.label || `Item ${row + 1}`}</text>
+                {Array.from({ length: 6 }).map((_, col) => (
+                  <circle
+                    key={col}
+                    cx={145 + col * 22}
+                    cy={8}
+                    r={6}
+                    fill={col < active ? accent : '#D7DFEA'}
+                  />
+                ))}
+              </g>
             );
           })}
-        </div>
+        </svg>
       );
     }
 
-    function ProbabilityRows({ items, accent }: { items: Array<{ label: string; value: string | number }>; accent: string }) {
+    function SvgFlow({ steps, accent }: { steps: string[]; accent: string }) {
       return (
-        <div className="space-y-3">
-          {items.map((item, index) => {
-            const raw = typeof item.value === 'number' ? item.value : Number(item.value || 0);
-            const width = Number.isFinite(raw) ? Math.max(14, Math.min(100, raw)) : 33;
+        <svg viewBox="0 0 320 120" className="h-[120px] w-full">
+          <defs>
+            <marker id="arrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+              <path d="M0,0 L6,3 L0,6 Z" fill="#94A3B8" />
+            </marker>
+          </defs>
+          {steps.slice(0, 3).map((step, index) => {
+            const x = 10 + index * 102;
             return (
-              <div key={index} className="rounded-[18px] bg-slate-50 px-4 py-4">
-                <div className="flex items-center justify-between gap-4">
-                  <div className="text-[15px] font-semibold text-slate-800">{item.label}</div>
-                  <div className="text-[14px] font-black text-slate-500">{item.value || '--'}</div>
-                </div>
-                <div className="mt-3 h-2.5 rounded-full bg-white">
-                  <div className="h-2.5 rounded-full" style={{ width: `${width}%`, background: accent }} />
-                </div>
-              </div>
+              <g key={index}>
+                <rect x={x} y="34" width="90" height="44" rx="14" fill={index === 1 ? accent : '#E8EEF8'} />
+                <text x={x + 45} y="60" textAnchor="middle" fontSize="11" fill={index === 1 ? '#fff' : '#0F172A'}>
+                  {(step || '').slice(0, 8)}
+                </text>
+                {index < 2 ? <path d={`M ${x + 92} 56 L ${x + 108} 56`} stroke="#94A3B8" strokeWidth="2.5" markerEnd="url(#arrow)" /> : null}
+              </g>
             );
           })}
-        </div>
+        </svg>
       );
+    }
+
+    function SvgBars({ items, accent }: { items: Array<{ label?: string; value?: string | number }>; accent: string }) {
+      return (
+        <svg viewBox="0 0 320 120" className="h-[120px] w-full">
+          {items.slice(0, 4).map((item, index) => {
+            const raw = typeof item.value === 'number' ? item.value : Number(item.value || 0);
+            const width = Number.isFinite(raw) ? Math.max(28, Math.min(200, raw * 2)) : 96;
+            const y = 10 + index * 26;
+            return (
+              <g key={index}>
+                <text x="0" y={y + 12} fontSize="11" fill="#64748B">{item.label || `Signal ${index + 1}`}</text>
+                <rect x="102" y={y} width="180" height="12" rx="6" fill="#E5EDF6" />
+                <rect x="102" y={y} width={width} height="12" rx="6" fill={accent} />
+              </g>
+            );
+          })}
+        </svg>
+      );
+    }
+
+    function SvgComparison({ items, accent }: { items: Array<{ label?: string; value?: string | number }>; accent: string }) {
+      return (
+        <svg viewBox="0 0 320 120" className="h-[120px] w-full">
+          {items.slice(0, 4).map((item, index) => {
+            const x = 18 + index * 72;
+            const h = 28 + (4 - index) * 12;
+            return (
+              <g key={index}>
+                <rect x={x} y={96 - h} width="36" height={h} rx="10" fill={index % 2 === 0 ? accent : '#9DB8FF'} />
+                <text x={x + 18} y="110" textAnchor="middle" fontSize="10" fill="#64748B">{(item.label || '').slice(0, 4)}</text>
+              </g>
+            );
+          })}
+        </svg>
+      );
+    }
+
+    function SvgProbabilities({ items, accent }: { items: Array<{ label?: string; value?: string | number }>; accent: string }) {
+      return (
+        <svg viewBox="0 0 320 120" className="h-[120px] w-full">
+          {items.slice(0, 3).map((item, index) => {
+            const raw = typeof item.value === 'number' ? item.value : Number(item.value || 0);
+            const width = Number.isFinite(raw) ? Math.max(40, Math.min(240, raw * 2.2)) : 120;
+            const y = 14 + index * 32;
+            return (
+              <g key={index}>
+                <text x="0" y={y + 12} fontSize="11" fill="#64748B">{item.label || `Case ${index + 1}`}</text>
+                <rect x="98" y={y} width="190" height="14" rx="7" fill="#EEF2F7" />
+                <rect x="98" y={y} width={width} height="14" rx="7" fill={accent} />
+              </g>
+            );
+          })}
+        </svg>
+      );
+    }
+
+    function SvgVisual({ card, accent }: { card: any; accent: string }) {
+      const data = card.visualData || {};
+      if (card.visualType === 'mini-flow') return <SvgFlow steps={data.steps || []} accent={accent} />;
+      if (card.visualType === 'signal-bar') return <SvgBars items={data.signals || data.items || []} accent={accent} />;
+      if (card.visualType === 'comparison-strip') return <SvgComparison items={data.items || []} accent={accent} />;
+      if (card.visualType === 'probability-strip') return <SvgProbabilities items={data.items || []} accent={accent} />;
+      return <SvgDots items={data.nodes || data.items || []} accent={accent} />;
     }
 
     function renderCard(card: any, index: number) {
@@ -158,6 +229,9 @@ APP_TEMPLATE = dedent(
                 ))}
               </div>
             ) : null}
+            <div className="mt-8 rounded-[24px] bg-white/8 px-5 py-5">
+              <SvgVisual card={card} accent="#F8C84D" />
+            </div>
           </article>
         );
       }
@@ -178,6 +252,7 @@ APP_TEMPLATE = dedent(
         return (
           <article key={index} className={`${spanClass} rounded-[28px] bg-white px-7 py-7 shadow-[0_10px_32px_rgba(15,23,42,0.06)]`}>
             <div className="text-[12px] font-bold tracking-[0.22em] text-slate-400">{card.title || '关键线索'}</div>
+            {card.claim ? <div className="mt-3 text-[24px] font-black leading-[1.35] tracking-[-0.025em] text-slate-950">{card.claim}</div> : null}
             <div className="mt-5 space-y-3">
               {normalizedItems.map((item, itemIndex) => (
                 <div key={itemIndex} className="flex items-start gap-3 rounded-[18px] bg-slate-50 px-4 py-4">
@@ -186,6 +261,9 @@ APP_TEMPLATE = dedent(
                 </div>
               ))}
             </div>
+            <div className="mt-6 rounded-[22px] bg-slate-50 px-4 py-4">
+              <SvgVisual card={card} accent={accent} />
+            </div>
           </article>
         );
       }
@@ -193,11 +271,10 @@ APP_TEMPLATE = dedent(
       if (card.type === 'comparison-card') {
         return (
           <article key={index} className={`${spanClass} rounded-[30px] bg-white px-8 py-8 shadow-[0_12px_36px_rgba(15,23,42,0.06)]`}>
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <div className="text-[12px] font-bold tracking-[0.22em] text-slate-400">COMPARISON</div>
-                <h3 className="mt-3 text-[30px] font-black tracking-[-0.03em] text-slate-950">{card.title}</h3>
-              </div>
+            <div>
+              <div className="text-[12px] font-bold tracking-[0.22em] text-slate-400">COMPARISON</div>
+              <h3 className="mt-3 text-[30px] font-black tracking-[-0.03em] text-slate-950">{card.title}</h3>
+              {card.claim ? <div className="mt-3 text-[18px] leading-8 text-slate-600">{card.claim}</div> : null}
             </div>
             <div className="mt-6 grid grid-cols-2 gap-4">
               {normalizedItems.map((item, itemIndex) => (
@@ -207,29 +284,22 @@ APP_TEMPLATE = dedent(
                 </div>
               ))}
             </div>
-          </article>
-        );
-      }
-
-      if (card.type === 'mini-bar-card') {
-        return (
-          <article key={index} className={`${spanClass} rounded-[28px] bg-white px-7 py-7 shadow-[0_10px_32px_rgba(15,23,42,0.06)]`}>
-            <div className="text-[12px] font-bold tracking-[0.22em] text-slate-400">SCORES</div>
-            <h3 className="mt-3 text-[28px] font-black tracking-[-0.03em] text-slate-950">{card.title}</h3>
-            <div className="mt-6">
-              <MetricBars items={normalizedItems} accent={accent} />
+            <div className="mt-6 rounded-[22px] bg-slate-50 px-5 py-5">
+              <SvgVisual card={card} accent={accent} />
             </div>
           </article>
         );
       }
 
-      if (card.type === 'probability-card') {
+      if (card.type === 'mini-bar-card' || card.type === 'probability-card') {
+        const eyebrow = card.type === 'mini-bar-card' ? 'SCORES' : 'SCENARIOS';
         return (
           <article key={index} className={`${spanClass} rounded-[28px] bg-white px-7 py-7 shadow-[0_10px_32px_rgba(15,23,42,0.06)]`}>
-            <div className="text-[12px] font-bold tracking-[0.22em] text-slate-400">SCENARIOS</div>
+            <div className="text-[12px] font-bold tracking-[0.22em] text-slate-400">{eyebrow}</div>
             <h3 className="mt-3 text-[28px] font-black tracking-[-0.03em] text-slate-950">{card.title}</h3>
-            <div className="mt-6">
-              <ProbabilityRows items={normalizedItems} accent={accent} />
+            {card.claim ? <div className="mt-3 text-[17px] leading-8 text-slate-600">{card.claim}</div> : null}
+            <div className="mt-6 rounded-[22px] bg-slate-50 px-4 py-4">
+              <SvgVisual card={card} accent={accent} />
             </div>
           </article>
         );
@@ -242,7 +312,7 @@ APP_TEMPLATE = dedent(
             <div className="text-[12px] font-bold tracking-[0.22em] text-slate-400">{card.sectionTitle || card.type}</div>
           </div>
           <h3 className="text-[28px] font-black leading-[1.25] tracking-[-0.03em] text-slate-950">{card.title}</h3>
-          {card.summary ? <p className="mt-4 text-[18px] leading-8 text-slate-600">{card.summary}</p> : null}
+          {card.claim ? <div className="mt-3 text-[20px] font-semibold leading-[1.6] text-slate-800">{card.claim}</div> : null}
           {card.bullets?.length ? (
             <div className="mt-5 space-y-3">
               {card.bullets.map((item: string, itemIndex: number) => (
@@ -252,6 +322,9 @@ APP_TEMPLATE = dedent(
               ))}
             </div>
           ) : null}
+          <div className="mt-6 rounded-[22px] bg-slate-50 px-4 py-4">
+            <SvgVisual card={card} accent={accent} />
+          </div>
         </article>
       );
     }
@@ -280,7 +353,7 @@ APP_TEMPLATE = dedent(
       }, []);
 
       const cards = useMemo(() => FREE_REPORT_BRIEF.cards || [], []);
-      const totalBlocks = useMemo(() => cards.length, [cards]);
+      const totalCards = cards.length;
       const { lead, rest } = useMemo(() => splitHighlights(FREE_REPORT_BRIEF.summary || []), []);
 
       return (
@@ -289,12 +362,12 @@ APP_TEMPLATE = dedent(
             <section className="bg-[#F8FAFC] px-16 pt-14">
               <div className="grid grid-cols-[1.25fr_0.75fr] gap-10 border-b border-slate-200 pb-12">
                 <div>
-                  <div className="text-[12px] font-bold tracking-[0.22em] text-slate-400">自由研报 / 编辑版式</div>
+                  <div className="text-[12px] font-bold tracking-[0.22em] text-slate-400">FREE REPORT / SVG INFOGRAPHIC</div>
                   <h1 className="mt-5 max-w-[980px] text-[78px] font-black leading-[0.98] tracking-[-0.055em] text-slate-950">
                     {FREE_REPORT_BRIEF.title}
                   </h1>
                   <p className="mt-6 max-w-[880px] text-[24px] leading-[1.75] text-slate-600">
-                    {FREE_REPORT_BRIEF.userIntent || '根据内容结构自动重组成媒体化卡片长图，优先突出结论、对比关系与可转发的视觉节奏。'}
+                    {FREE_REPORT_BRIEF.userIntent || '根据内容结构自动重组成观点提炼 + 示意图表的卡片式长图，优先保证扫读效率和视觉完成度。'}
                   </p>
                 </div>
 
@@ -303,17 +376,17 @@ APP_TEMPLATE = dedent(
                     <div className="text-[12px] tracking-[0.22em] text-slate-400">内容速览</div>
                     <div className="mt-6 grid grid-cols-2 gap-4">
                       <div>
-                        <div className="text-[38px] font-black leading-none">{FREE_REPORT_BRIEF.layoutFamily || 'adaptive'}</div>
+                        <div className="text-[34px] font-black leading-none">{FREE_REPORT_BRIEF.layoutFamily || 'adaptive'}</div>
                         <div className="mt-2 text-sm text-slate-400">版式族</div>
                       </div>
                       <div>
-                        <div className="text-[38px] font-black leading-none">{totalBlocks}</div>
-                        <div className="mt-2 text-sm text-slate-400">信息卡片</div>
+                        <div className="text-[38px] font-black leading-none">{totalCards}</div>
+                        <div className="mt-2 text-sm text-slate-400">观点卡片</div>
                       </div>
                     </div>
                   </div>
                   <div className="mt-8 border-t border-white/10 pt-6 text-[17px] leading-8 text-slate-300">
-                    阅读顺序：先抓主判断，再扫卡片组块，最后回看重点分区与风险提示。
+                    先看主判断，再扫要点卡和示意图表，最后回到分区细节。
                   </div>
                 </div>
               </div>
@@ -339,7 +412,7 @@ APP_TEMPLATE = dedent(
 
             {FREE_REPORT_BRIEF.referenceImages?.length ? (
               <section className="border-t border-slate-200 bg-[#F6FAFF] px-16 py-5 text-[16px] leading-8 text-[#26408B]">
-                本版面参考了用户提供样式图中的信息层级、视觉节奏与结构方式，但最终输出为基于当前内容重新组织的原创长图。
+                本版面仅参考参考图的视觉节奏与结构方式，所有内容卡片与SVG示意图均为根据当前内容重新生成。
               </section>
             ) : null}
 
