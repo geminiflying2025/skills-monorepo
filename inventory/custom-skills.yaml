@@ -24,3 +24,12 @@
   managed_in_repo: true
   repo_path: "skills/readurl"
   keep: true
+
+- name: "wisdom-news-brief"
+  type: "custom"
+  status: "managed"
+  summary: "按固定提示模板生成新闻简报内容，用于资讯汇总与摘要输出。"
+  location: "/Users/macmini/.openclaw/skills/wisdom-news-brief"
+  managed_in_repo: true
+  repo_path: "skills/wisdom-news-brief"
+  keep: true
