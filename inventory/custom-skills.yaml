@@ -1,0 +1,8 @@
+- name: "market-report"
+  type: "custom"
+  status: "managed"
+  summary: "将市场研报内容渲染为固定模板长图 PNG，支持从文本或文件结构化后输出。"
+  location: "/Users/macmini/.openclaw/skills/market-report"
+  managed_in_repo: true
+  repo_path: "skills/market-report"
+  keep: true

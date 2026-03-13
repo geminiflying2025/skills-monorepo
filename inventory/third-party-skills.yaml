@@ -1,0 +1,487 @@
+- name: "algorithmic-art"
+  type: "third-party"
+  status: "installed"
+  summary: "Creating algorithmic art using p5.js with seeded randomness and interactive parameter exploration. Use this when users request creating art using code, generative art, algorithmic art, flow fields, or particle systems. Create original algorithmic art rather than copying existing artists' work to avoid copyright violations."
+  location: "/Users/macmini/.openclaw/skills/algorithmic-art"
+  managed_in_repo: false
+  keep: true
+
+- name: "baoyu-article-illustrator"
+  type: "third-party"
+  status: "installed"
+  summary: "Analyzes article structure, identifies positions requiring visual aids, generates illustrations with Type × Style two-dimension approach. Use when user asks to \"illustrate article\", \"add images\", \"generate images for article\", or \"为文章配图\"."
+  location: "/Users/macmini/.openclaw/skills/baoyu-article-illustrator"
+  managed_in_repo: false
+  keep: true
+
+- name: "baoyu-comic"
+  type: "third-party"
+  status: "installed"
+  summary: "Knowledge comic creator supporting multiple art styles and tones. Creates original educational comics with detailed panel layouts and sequential image generation. Use when user asks to create \"知识漫画\", \"教育漫画\", \"biography comic\", \"tutorial comic\", or \"Logicomix-style comic\"."
+  location: "/Users/macmini/.openclaw/skills/baoyu-comic"
+  managed_in_repo: false
+  keep: true
+
+- name: "baoyu-compress-image"
+  type: "third-party"
+  status: "installed"
+  summary: "Compresses images to WebP (default) or PNG with automatic tool selection. Use when user asks to \"compress image\", \"optimize image\", \"convert to webp\", or reduce image file size."
+  location: "/Users/macmini/.openclaw/skills/baoyu-compress-image"
+  managed_in_repo: false
+  keep: true
+
+- name: "baoyu-cover-image"
+  type: "third-party"
+  status: "installed"
+  summary: "Generates article cover images with 5 dimensions (type, palette, rendering, text, mood) combining 9 color palettes and 6 rendering styles. Supports cinematic (2.35:1), widescreen (16:9), and square (1:1) aspects. Use when user asks to \"generate cover image\", \"create article cover\", or \"make cover\"."
+  location: "/Users/macmini/.openclaw/skills/baoyu-cover-image"
+  managed_in_repo: false
+  keep: true
+
+- name: "baoyu-danger-gemini-web"
+  type: "third-party"
+  status: "installed"
+  summary: "Generates images and text via reverse-engineered Gemini Web API. Supports text generation, image generation from prompts, reference images for vision input, and multi-turn conversations. Use when other skills need image generation backend, or when user requests \"generate image with Gemini\", \"Gemini text generation\", or needs vision-capable AI generation."
+  location: "/Users/macmini/.openclaw/skills/baoyu-danger-gemini-web"
+  managed_in_repo: false
+  keep: true
+
+- name: "baoyu-danger-x-to-markdown"
+  type: "third-party"
+  status: "installed"
+  summary: "Converts X (Twitter) tweets and articles to markdown with YAML front matter. Uses reverse-engineered API requiring user consent. Use when user mentions \"X to markdown\", \"tweet to markdown\", \"save tweet\", or provides x.com/twitter.com URLs for conversion."
+  location: "/Users/macmini/.openclaw/skills/baoyu-danger-x-to-markdown"
+  managed_in_repo: false
+  keep: true
+
+- name: "baoyu-format-markdown"
+  type: "third-party"
+  status: "installed"
+  summary: "Formats plain text or markdown files with frontmatter, titles, summaries, headings, bold, lists, and code blocks. Use when user asks to \"format markdown\", \"beautify article\", \"add formatting\", or improve article layout. Outputs to {filename}-formatted.md."
+  location: "/Users/macmini/.openclaw/skills/baoyu-format-markdown"
+  managed_in_repo: false
+  keep: true
+
+- name: "baoyu-image-gen"
+  type: "third-party"
+  status: "installed"
+  summary: "AI image generation with OpenAI, Google and DashScope APIs. Supports text-to-image, reference images, aspect ratios. Sequential by default; parallel generation available on request. Use when user asks to generate, create, or draw images."
+  location: "/Users/macmini/.openclaw/skills/baoyu-image-gen"
+  managed_in_repo: false
+  keep: true
+
+- name: "baoyu-infographic"
+  type: "third-party"
+  status: "installed"
+  summary: "Generates professional infographics with 20 layout types and 17 visual styles. Analyzes content, recommends layout×style combinations, and generates publication-ready infographics. Use when user asks to create \"infographic\", \"信息图\", \"visual summary\", or \"可视化\"."
+  location: "/Users/macmini/.openclaw/skills/baoyu-infographic"
+  managed_in_repo: false
+  keep: true
+
+- name: "baoyu-markdown-to-html"
+  type: "third-party"
+  status: "installed"
+  summary: "Converts Markdown to styled HTML with WeChat-compatible themes. Supports code highlighting, math, PlantUML, footnotes, alerts, and infographics. Use when user asks for \"markdown to html\", \"convert md to html\", \"md转html\", or needs styled HTML output from markdown."
+  location: "/Users/macmini/.openclaw/skills/baoyu-markdown-to-html"
+  managed_in_repo: false
+  keep: true
+
+- name: "baoyu-post-to-wechat"
+  type: "third-party"
+  status: "installed"
+  summary: "Posts content to WeChat Official Account (微信公众号) via API or Chrome CDP. Supports article posting (文章) with HTML, markdown, or plain text input, and image-text posting (贴图, formerly 图文) with multiple images. Use when user mentions \"发布公众号\", \"post to wechat\", \"微信公众号\", or \"贴图/图文/文章\"."
+  location: "/Users/macmini/.openclaw/skills/baoyu-post-to-wechat"
+  managed_in_repo: false
+  keep: true
+
+- name: "baoyu-post-to-x"
+  type: "third-party"
+  status: "installed"
+  summary: "Posts content and articles to X (Twitter). Supports regular posts with images/videos and X Articles (long-form Markdown). Uses real Chrome with CDP to bypass anti-automation. Use when user asks to \"post to X\", \"tweet\", \"publish to Twitter\", or \"share on X\"."
+  location: "/Users/macmini/.openclaw/skills/baoyu-post-to-x"
+  managed_in_repo: false
+  keep: true
+
+- name: "baoyu-slide-deck"
+  type: "third-party"
+  status: "installed"
+  summary: "Generates professional slide deck images from content. Creates outlines with style instructions, then generates individual slide images. Use when user asks to \"create slides\", \"make a presentation\", \"generate deck\", \"slide deck\", or \"PPT\"."
+  location: "/Users/macmini/.openclaw/skills/baoyu-slide-deck"
+  managed_in_repo: false
+  keep: true
+
+- name: "baoyu-url-to-markdown"
+  type: "third-party"
+  status: "installed"
+  summary: "Fetch any URL and convert to markdown using Chrome CDP. Supports two modes - auto-capture on page load, or wait for user signal (for pages requiring login). Use when user wants to save a webpage as markdown."
+  location: "/Users/macmini/.openclaw/skills/baoyu-url-to-markdown"
+  managed_in_repo: false
+  keep: true
+
+- name: "baoyu-xhs-images"
+  type: "third-party"
+  status: "installed"
+  summary: "Generates Xiaohongshu (Little Red Book) infographic series with 10 visual styles and 8 layouts. Breaks content into 1-10 cartoon-style images optimized for XHS engagement. Use when user mentions \"小红书图片\", \"XHS images\", \"RedNote infographics\", \"小红书种草\", or wants social media infographics for Chinese platforms."
+  location: "/Users/macmini/.openclaw/skills/baoyu-xhs-images"
+  managed_in_repo: false
+  keep: true
+
+- name: "brainstorming"
+  type: "third-party"
+  status: "installed"
+  summary: "You MUST use this before any creative work - creating features, building components, adding functionality, or modifying behavior. Explores user intent, requirements and design before implementation."
+  location: "/Users/macmini/.openclaw/skills/brainstorming"
+  managed_in_repo: false
+  keep: true
+
+- name: "brand-guidelines"
+  type: "third-party"
+  status: "installed"
+  summary: "Applies Anthropic's official brand colors and typography to any sort of artifact that may benefit from having Anthropic's look-and-feel. Use it when brand colors or style guidelines, visual formatting, or company design standards apply."
+  location: "/Users/macmini/.openclaw/skills/brand-guidelines"
+  managed_in_repo: false
+  keep: true
+
+- name: "canvas-design"
+  type: "third-party"
+  status: "installed"
+  summary: "Create beautiful visual art in .png and .pdf documents using design philosophy. You should use this skill when the user asks to create a poster, piece of art, design, or other static piece. Create original visual designs, never copying existing artists' work to avoid copyright violations."
+  location: "/Users/macmini/.openclaw/skills/canvas-design"
+  managed_in_repo: false
+  keep: true
+
+- name: "dispatching-parallel-agents"
+  type: "third-party"
+  status: "installed"
+  summary: "Use when facing 2+ independent tasks that can be worked on without shared state or sequential dependencies"
+  location: "/Users/macmini/.openclaw/skills/dispatching-parallel-agents"
+  managed_in_repo: false
+  keep: true
+
+- name: "doc-coauthoring"
+  type: "third-party"
+  status: "installed"
+  summary: "Guide users through a structured workflow for co-authoring documentation. Use when user wants to write documentation, proposals, technical specs, decision docs, or similar structured content. This workflow helps users efficiently transfer context, refine content through iteration, and verify the doc works for readers. Trigger when user mentions writing docs, creating proposals, drafting specs, or similar documentation tasks."
+  location: "/Users/macmini/.openclaw/skills/doc-coauthoring"
+  managed_in_repo: false
+  keep: true
+
+- name: "docx"
+  type: "third-party"
+  status: "installed"
+  summary: "Use this skill whenever the user wants to create, read, edit, or manipulate Word documents (.docx files). Triggers include: any mention of \\"Word doc\\", \\"word document\\", \\".docx\\", or requests to produce professional documents with formatting like tables of contents, headings, page numbers, or letterheads. Also use when extracting or reorganizing content from .docx files, inserting or replacing images in documents, performing find-and-replace in Word files, working with tracked changes or comments, or converting content into a polished Word document. If the user asks for a \\"report\\", \\"memo\\", \\"letter\\", \\"template\\", or similar deliverable as a Word or .docx file, use this skill. Do NOT use for PDFs, spreadsheets, Google Docs, or general coding tasks unrelated to document generation."
+  location: "/Users/macmini/.openclaw/skills/docx"
+  managed_in_repo: false
+  keep: true
+
+- name: "executing-plans"
+  type: "third-party"
+  status: "installed"
+  summary: "Use when you have a written implementation plan to execute in a separate session with review checkpoints"
+  location: "/Users/macmini/.openclaw/skills/executing-plans"
+  managed_in_repo: false
+  keep: true
+
+- name: "experience-capture"
+  type: "third-party"
+  status: "installed"
+  summary: "Capture reusable coding experience cards from key alignment and hard-problem resolution moments. Use when users ask to summarize lessons, preserve decision rules, or build reusable play patterns across tasks and projects. Do not use for verbatim transcript archival, routine progress logging, or replacing layered project memory."
+  location: "/Users/macmini/.openclaw/skills/experience-capture"
+  managed_in_repo: false
+  keep: true
+
+- name: "figma"
+  type: "third-party"
+  status: "installed"
+  summary: "Use the Figma MCP server to fetch design context, screenshots, variables, and assets from Figma, and to translate Figma nodes into production code. Trigger when a task involves Figma URLs, node IDs, design-to-code implementation, or Figma MCP setup and troubleshooting."
+  location: "/Users/macmini/.openclaw/skills/figma"
+  managed_in_repo: false
+  keep: true
+
+- name: "figma-implement-design"
+  type: "third-party"
+  status: "installed"
+  summary: "Translate Figma nodes into production-ready code with 1:1 visual fidelity using the Figma MCP workflow (design context, screenshots, assets, and project-convention translation). Trigger when the user provides Figma URLs or node IDs, or asks to implement designs or components that must match Figma specs. Requires a working Figma MCP server connection."
+  location: "/Users/macmini/.openclaw/skills/figma-implement-design"
+  managed_in_repo: false
+  keep: true
+
+- name: "finishing-a-development-branch"
+  type: "third-party"
+  status: "installed"
+  summary: "Use when implementation is complete, all tests pass, and you need to decide how to integrate the work - guides completion of development work by presenting structured options for merge, PR, or cleanup"
+  location: "/Users/macmini/.openclaw/skills/finishing-a-development-branch"
+  managed_in_repo: false
+  keep: true
+
+- name: "frontend-design"
+  type: "third-party"
+  status: "installed"
+  summary: "Create distinctive, production-grade frontend interfaces with high design quality. Use this skill when the user asks to build web components, pages, or applications. Generates creative, polished code that avoids generic AI aesthetics."
+  location: "/Users/macmini/.openclaw/skills/frontend-design"
+  managed_in_repo: false
+  keep: true
+
+- name: "imagegen"
+  type: "third-party"
+  status: "installed"
+  summary: "Use when the user asks to generate or edit images via the OpenAI Image API (for example: generate image, edit/inpaint/mask, background removal or replacement, transparent background, product shots, concept art, covers, or batch variants); run the bundled CLI (`scripts/image_gen.py`) and require `OPENAI_API_KEY` for live calls."
+  location: "/Users/macmini/.openclaw/skills/imagegen"
+  managed_in_repo: false
+  keep: true
+
+- name: "internal-comms"
+  type: "third-party"
+  status: "installed"
+  summary: "A set of resources to help me write all kinds of internal communications, using the formats that my company likes to use. Claude should use this skill whenever asked to write some sort of internal communications (status reports, leadership updates, 3P updates, company newsletters, FAQs, incident reports, project updates, etc.)."
+  location: "/Users/macmini/.openclaw/skills/internal-comms"
+  managed_in_repo: false
+  keep: true
+
+- name: "knowledge-refresh"
+  type: "third-party"
+  status: "installed"
+  summary: "Validate uncertain or time-sensitive technical claims with authoritative external sources. Use when users ask for verification, latest official guidance, or stronger evidence for disputed technical points. Do not use for local code debugging, test-only verification, or experience/memory capture."
+  location: "/Users/macmini/.openclaw/skills/knowledge-refresh"
+  managed_in_repo: false
+  keep: true
+
+- name: "layered-project-memory"
+  type: "third-party"
+  status: "installed"
+  summary: "Capture and retrieve layered project memory for coding projects, including project state (L1), key events (L2), and node insights (L3) with Git anchors and pointer-first evidence links. Use when users ask to resume interrupted work, preserve key milestone context, avoid repeated failed attempts, or generate focused context packs for resume/debug/release workflows. Do not use for one-off tiny edits, pure Q and A, or full transcript archival."
+  location: "/Users/macmini/.openclaw/skills/layered-project-memory"
+  managed_in_repo: false
+  keep: true
+
+- name: "mcp-builder"
+  type: "third-party"
+  status: "installed"
+  summary: "Guide for creating high-quality MCP (Model Context Protocol) servers that enable LLMs to interact with external services through well-designed tools. Use when building MCP servers to integrate external APIs or services, whether in Python (FastMCP) or Node/TypeScript (MCP SDK)."
+  location: "/Users/macmini/.openclaw/skills/mcp-builder"
+  managed_in_repo: false
+  keep: true
+
+- name: "multi-agent-discussion-advisor"
+  type: "third-party"
+  status: "installed"
+  summary: "Guide discussion-phase multi-agent decision making for vibe coding projects by providing role design and a launch specification for the host coding agent to start multi-agent review. Use when users need cross-role synthesis to evaluate options and converge on one recommendation across product, requirement, architecture, or hard-problem discussions. Do not use for execution planning, business runtime orchestration, or direct implementation."
+  location: "/Users/macmini/.openclaw/skills/multi-agent-discussion-advisor"
+  managed_in_repo: false
+  keep: true
+
+- name: "notebooklm-docs"
+  type: "third-party"
+  status: "installed"
+  summary: "NotebookLM document workflow via notebooklm-py CLI for research and deliverables. Use when tasks involve NotebookLM notebook creation, source ingestion (URL/file/text), source-grounded Q&A, and artifact generation/download (PPTX slides, MP4 video, quiz, flashcards, reports). Trigger on requests like “用 NotebookLM 处理文档”, “生成PPT/视频”, “基于资料问答”, or “下载 notebook 产物”."
+  location: "/Users/macmini/.openclaw/skills/notebooklm-docs"
+  managed_in_repo: false
+  keep: true
+
+- name: "notebooklm-skill"
+  type: "third-party"
+  status: "installed"
+  summary: "Use this skill to query your Google NotebookLM notebooks directly from Claude Code for source-grounded, citation-backed answers from Gemini. Browser automation, library management, persistent auth. Drastically reduced hallucinations through document-only responses."
+  location: "/Users/macmini/.openclaw/skills/notebooklm-skill"
+  managed_in_repo: false
+  keep: true
+
+- name: "pdf"
+  type: "third-party"
+  status: "installed"
+  summary: "Use when tasks involve reading, creating, or reviewing PDF files where rendering and layout matter; prefer visual checks by rendering pages (Poppler) and use Python tools such as `reportlab`, `pdfplumber`, and `pypdf` for generation and extraction."
+  location: "/Users/macmini/.openclaw/skills/pdf"
+  managed_in_repo: false
+  keep: true
+
+- name: "playwright"
+  type: "third-party"
+  status: "installed"
+  summary: "Use when the task requires automating a real browser from the terminal (navigation, form filling, snapshots, screenshots, data extraction, UI-flow debugging) via `playwright-cli` or the bundled wrapper script."
+  location: "/Users/macmini/.openclaw/skills/playwright"
+  managed_in_repo: false
+  keep: true
+
+- name: "pptx"
+  type: "third-party"
+  status: "installed"
+  summary: "Use this skill any time a .pptx file is involved in any way — as input, output, or both. This includes: creating slide decks, pitch decks, or presentations; reading, parsing, or extracting text from any .pptx file (even if the extracted content will be used elsewhere, like in an email or summary); editing, modifying, or updating existing presentations; combining or splitting slide files; working with templates, layouts, speaker notes, or comments. Trigger whenever the user mentions \\"deck,\\" \\"slides,\\" \\"presentation,\\" or references a .pptx filename, regardless of what they plan to do with the content afterward. If a .pptx file needs to be opened, created, or touched, use this skill."
+  location: "/Users/macmini/.openclaw/skills/pptx"
+  managed_in_repo: false
+  keep: true
+
+- name: "react-best-practices"
+  type: "third-party"
+  status: "installed"
+  summary: "React and Next.js performance optimization guidelines from Vercel Engineering. This skill should be used when writing, reviewing, or refactoring React/Next.js code to ensure optimal performance patterns. Triggers on tasks involving React components, Next.js pages, data fetching, bundle optimization, or performance improvements."
+  location: "/Users/macmini/.openclaw/skills/react-best-practices"
+  managed_in_repo: false
+  keep: true
+
+- name: "readurl"
+  type: "third-party"
+  status: "installed"
+  summary: "Read URL content with anti-bot fallbacks (local Playwright snapshot, browser rendering, optional pagecopy mirror). Use when normal fetch misses content or hits JS/challenge pages."
+  location: "/Users/macmini/.openclaw/skills/readurl"
+  managed_in_repo: false
+  keep: true
+
+- name: "receiving-code-review"
+  type: "third-party"
+  status: "installed"
+  summary: "Use when receiving code review feedback, before implementing suggestions, especially if feedback seems unclear or technically questionable - requires technical rigor and verification, not performative agreement or blind implementation"
+  location: "/Users/macmini/.openclaw/skills/receiving-code-review"
+  managed_in_repo: false
+  keep: true
+
+- name: "requesting-code-review"
+  type: "third-party"
+  status: "installed"
+  summary: "Use when completing tasks, implementing major features, or before merging to verify work meets requirements"
+  location: "/Users/macmini/.openclaw/skills/requesting-code-review"
+  managed_in_repo: false
+  keep: true
+
+- name: "screenshot"
+  type: "third-party"
+  status: "installed"
+  summary: "Use when the user explicitly asks for a desktop or system screenshot (full screen, specific app or window, or a pixel region), or when tool-specific capture capabilities are unavailable and an OS-level capture is needed."
+  location: "/Users/macmini/.openclaw/skills/screenshot"
+  managed_in_repo: false
+  keep: true
+
+- name: "sdd-plan-maintainer"
+  type: "third-party"
+  status: "installed"
+  summary: "Create and maintain SDD execution plans for coding work, including concrete feature or fix planning, milestone status tracking, user-confirmed completion gates, archive or index synchronization under docs/plans, and optional harness state handoff without duplicating lifecycle ownership. Use when users ask for a specific plan, plan refinement, phased execution tracking, progress updates, or plan closure. Do not use for one-off tiny edits, pure Q and A, or internal scratch planning with no user-visible plan output."
+  location: "/Users/macmini/.openclaw/skills/sdd-plan-maintainer"
+  managed_in_repo: false
+  keep: true
+
+- name: "slack-gif-creator"
+  type: "third-party"
+  status: "installed"
+  summary: "Knowledge and utilities for creating animated GIFs optimized for Slack. Provides constraints, validation tools, and animation concepts. Use when users request animated GIFs for Slack like \"make me a GIF of X doing Y for Slack."
+  location: "/Users/macmini/.openclaw/skills/slack-gif-creator"
+  managed_in_repo: false
+  keep: true
+
+- name: "subagent-driven-development"
+  type: "third-party"
+  status: "installed"
+  summary: "Use when executing implementation plans with independent tasks in the current session"
+  location: "/Users/macmini/.openclaw/skills/subagent-driven-development"
+  managed_in_repo: false
+  keep: true
+
+- name: "systematic-debugging"
+  type: "third-party"
+  status: "installed"
+  summary: "Use when encountering any bug, test failure, or unexpected behavior, before proposing fixes"
+  location: "/Users/macmini/.openclaw/skills/systematic-debugging"
+  managed_in_repo: false
+  keep: true
+
+- name: "test-driven-development"
+  type: "third-party"
+  status: "installed"
+  summary: "Use when implementing any feature or bugfix, before writing implementation code"
+  location: "/Users/macmini/.openclaw/skills/test-driven-development"
+  managed_in_repo: false
+  keep: true
+
+- name: "theme-factory"
+  type: "third-party"
+  status: "installed"
+  summary: "Toolkit for styling artifacts with a theme. These artifacts can be slides, docs, reportings, HTML landing pages, etc. There are 10 pre-set themes with colors/fonts that you can apply to any artifact that has been creating, or can generate a new theme on-the-fly."
+  location: "/Users/macmini/.openclaw/skills/theme-factory"
+  managed_in_repo: false
+  keep: true
+
+- name: "ui-ux-pro-max"
+  type: "third-party"
+  status: "installed"
+  summary: "UI/UX design intelligence. 50 styles, 21 palettes, 50 font pairings, 20 charts, 9 stacks (React, Next.js, Vue, Svelte, SwiftUI, React Native, Flutter, Tailwind, shadcn/ui). Actions: plan, build, create, design, implement, review, fix, improve, optimize, enhance, refactor, check UI/UX code. Projects: website, landing page, dashboard, admin panel, e-commerce, SaaS, portfolio, blog, mobile app, .html, .tsx, .vue, .svelte. Elements: button, modal, navbar, sidebar, card, table, form, chart. Styles: glassmorphism, claymorphism, minimalism, brutalism, neumorphism, bento grid, dark mode, responsive, skeuomorphism, flat design. Topics: color palette, accessibility, animation, layout, typography, font pairing, spacing, hover, shadow, gradient. Integrations: shadcn/ui MCP for component search and examples."
+  location: "/Users/macmini/.openclaw/skills/ui-ux-pro-max"
+  managed_in_repo: false
+  keep: true
+
+- name: "using-git-worktrees"
+  type: "third-party"
+  status: "installed"
+  summary: "Use when starting feature work that needs isolation from current workspace or before executing implementation plans - creates isolated git worktrees with smart directory selection and safety verification"
+  location: "/Users/macmini/.openclaw/skills/using-git-worktrees"
+  managed_in_repo: false
+  keep: true
+
+- name: "using-superpowers"
+  type: "third-party"
+  status: "installed"
+  summary: "Use when starting any conversation - establishes how to find and use skills, requiring Skill tool invocation before ANY response including clarifying questions"
+  location: "/Users/macmini/.openclaw/skills/using-superpowers"
+  managed_in_repo: false
+  keep: true
+
+- name: "verification-before-completion"
+  type: "third-party"
+  status: "installed"
+  summary: "Use when about to claim work is complete, fixed, or passing, before committing or creating PRs - requires running verification commands and confirming output before making any success claims; evidence before assertions always"
+  location: "/Users/macmini/.openclaw/skills/verification-before-completion"
+  managed_in_repo: false
+  keep: true
+
+- name: "viewer-publisher"
+  type: "third-party"
+  status: "installed"
+  summary: "待补充简介"
+  location: "/Users/macmini/.openclaw/skills/viewer-publisher"
+  managed_in_repo: false
+  keep: true
+
+- name: "web-artifacts-builder"
+  type: "third-party"
+  status: "installed"
+  summary: "Suite of tools for creating elaborate, multi-component claude.ai HTML artifacts using modern frontend web technologies (React, Tailwind CSS, shadcn/ui). Use for complex artifacts requiring state management, routing, or shadcn/ui components - not for simple single-file HTML/JSX artifacts."
+  location: "/Users/macmini/.openclaw/skills/web-artifacts-builder"
+  managed_in_repo: false
+  keep: true
+
+- name: "webapp-testing"
+  type: "third-party"
+  status: "installed"
+  summary: "Toolkit for interacting with and testing local web applications using Playwright. Supports verifying frontend functionality, debugging UI behavior, capturing browser screenshots, and viewing browser logs."
+  location: "/Users/macmini/.openclaw/skills/webapp-testing"
+  managed_in_repo: false
+  keep: true
+
+- name: "wechat-article-reader"
+  type: "third-party"
+  status: "installed"
+  summary: "Use when a user provides a WeChat Official Account article link (mp.weixin.qq.com) and asks to read full content, extract正文, or convert it to reusable text/markdown."
+  location: "/Users/macmini/.openclaw/skills/wechat-article-reader"
+  managed_in_repo: false
+  keep: true
+
+- name: "writing-plans"
+  type: "third-party"
+  status: "installed"
+  summary: "Use when you have a spec or requirements for a multi-step task, before touching code"
+  location: "/Users/macmini/.openclaw/skills/writing-plans"
+  managed_in_repo: false
+  keep: true
+
+- name: "writing-skills"
+  type: "third-party"
+  status: "installed"
+  summary: "Use when creating new skills, editing existing skills, or verifying skills work before deployment"
+  location: "/Users/macmini/.openclaw/skills/writing-skills"
+  managed_in_repo: false
+  keep: true
+
+- name: "xlsx"
+  type: "third-party"
+  status: "installed"
+  summary: "Use this skill any time a spreadsheet file is the primary input or output. This means any task where the user wants to: open, read, edit, or fix an existing .xlsx, .xlsm, .csv, or .tsv file (e.g., adding columns, computing formulas, formatting, charting, cleaning messy data); create a new spreadsheet from scratch or from other data sources; or convert between tabular file formats. Trigger especially when the user references a spreadsheet file by name or path — even casually (like \\"the xlsx in my downloads\\") — and wants something done to it or produced from it. Also trigger for cleaning or restructuring messy tabular data files (malformed rows, misplaced headers, junk data) into proper spreadsheets. The deliverable must be a spreadsheet file. Do NOT trigger when the primary deliverable is a Word document, HTML report, standalone Python script, database pipeline, or Google Sheets API integration, even if tabular data is involved."
+  location: "/Users/macmini/.openclaw/skills/xlsx"
+  managed_in_repo: false
+  keep: true
