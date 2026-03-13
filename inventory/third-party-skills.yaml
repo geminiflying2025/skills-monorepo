@@ -485,3 +485,11 @@
   location: "/Users/macmini/.openclaw/skills/xlsx"
   managed_in_repo: false
   keep: true
+
+- name: "self-improving-agent"
+  type: "third-party"
+  status: "installed"
+  summary: "记录错误、纠正与能力缺口，形成持续改进的学习日志机制。"
+  location: "/Users/macmini/.openclaw/skills/self-improving-agent"
+  managed_in_repo: false
+  keep: true

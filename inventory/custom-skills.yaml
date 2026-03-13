@@ -6,3 +6,21 @@
   managed_in_repo: true
   repo_path: "skills/market-report"
   keep: true
+
+- name: "notebooklm-docs"
+  type: "custom"
+  status: "managed"
+  summary: "通过 notebooklm-py 管理 NotebookLM 文档工作流，支持资料导入、问答与产物生成。"
+  location: "/Users/macmini/.openclaw/skills/notebooklm-docs"
+  managed_in_repo: true
+  repo_path: "skills/notebooklm-docs"
+  keep: true
+
+- name: "readurl"
+  type: "custom"
+  status: "managed"
+  summary: "读取并转换网页内容的技能，包含页面抓取与本地快照辅助脚本。"
+  location: "/Users/macmini/.openclaw/skills/readurl"
+  managed_in_repo: true
+  repo_path: "skills/readurl"
+  keep: true
