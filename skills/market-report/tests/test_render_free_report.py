@@ -28,18 +28,19 @@ class RenderFreeReportTests(unittest.TestCase):
             "summary": ["内需修复，外部扰动上升", "成长仍活跃", "流动性趋于谨慎"],
             "userIntent": "",
             "contentType": "layered-viewpoint",
-            "layoutFamily": "layered-signal-grid",
+            "layoutFamily": "sequential-cards",
             "visualPriority": "visual-first",
             "hero": {
                 "type": "hero-summary-card",
                 "headline": "内需修复，外部扰动上升",
                 "highlights": ["成长仍活跃", "流动性趋于谨慎"],
+                "visualType": "constellation",
+                "visualData": {"nodes": [{"label": "内需修复", "value": 1}]},
             },
             "cards": [
-                {"type": "hero-summary-card", "headline": "内需修复，外部扰动上升", "highlights": ["成长仍活跃"]},
-                {"type": "signal-card", "title": "关键线索", "items": ["政策托底", "分化加剧"]},
+                {"type": "hero-summary-card", "headline": "内需修复，外部扰动上升", "highlights": ["成长仍活跃"], "visualType": "constellation", "visualData": {"nodes": [{"label": "内需修复", "value": 1}] }},
                 {"type": "section-header-card", "title": "宏观大类", "summary": "内需托底"},
-                {"type": "insight-card", "title": "宏观环境", "summary": "政策基调偏积极", "bullets": ["内需修复", "结构分化"]},
+                {"type": "topic-card", "title": "宏观环境", "claim": "政策基调偏积极", "bullets": ["内需修复", "结构分化"], "visualType": "mini-flow", "visualData": {"steps": ["内需修复", "结构分化"]}},
             ],
             "sections": [
                 {
@@ -62,9 +63,10 @@ class RenderFreeReportTests(unittest.TestCase):
             constants = (Path(result["app_dir"]) / "src" / "constants.ts").read_text(encoding="utf-8")
 
         self.assertEqual(manifest["mode"], "free-report")
-        self.assertIn('"layoutFamily": "layered-signal-grid"', constants)
+        self.assertIn('"layoutFamily": "sequential-cards"', constants)
         self.assertIn("FREE_REPORT_BRIEF.cards", app_source)
-        self.assertIn("hero-summary-card", app_source)
+        self.assertIn("SvgVisual", app_source)
+        self.assertIn("topic-card", constants)
 
 
 if __name__ == "__main__":

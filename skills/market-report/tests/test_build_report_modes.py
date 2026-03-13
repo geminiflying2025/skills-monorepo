@@ -37,7 +37,7 @@ class BuildReportModesTests(unittest.TestCase):
         )
         self.assertEqual(brief["title"], "标题")
         self.assertEqual(brief["contentType"], "layered-viewpoint")
-        self.assertEqual(brief["layoutFamily"], "layered-signal-grid")
+        self.assertEqual(brief["layoutFamily"], "sequential-cards")
         self.assertEqual(brief["visualPriority"], "visual-first")
         self.assertEqual(len(brief["sections"]), 2)
         self.assertEqual(brief["sections"][0]["blocks"][0]["title"], "宏观环境")
@@ -45,6 +45,7 @@ class BuildReportModesTests(unittest.TestCase):
         self.assertIn("cards", brief)
         self.assertGreaterEqual(len(brief["cards"]), 4)
         self.assertTrue(all("visualType" in card for card in brief["cards"]))
+        self.assertTrue(all(card["type"] in {"hero-summary-card", "section-header-card", "topic-card"} for card in brief["cards"]))
 
 
 if __name__ == "__main__":

@@ -15,7 +15,7 @@ def load_module():
 
 
 class FreeReportParserTests(unittest.TestCase):
-    def test_parse_builds_layered_viewpoint_card_plan(self):
+    def test_parse_builds_sequential_card_stack(self):
         module = load_module()
         result = module.parse_free_report_text(
             """慧度最新投资观点
@@ -30,7 +30,7 @@ class FreeReportParserTests(unittest.TestCase):
         )
         self.assertEqual(result["title"], "慧度最新投资观点")
         self.assertEqual(result["contentType"], "layered-viewpoint")
-        self.assertEqual(result["layoutFamily"], "layered-signal-grid")
+        self.assertEqual(result["layoutFamily"], "sequential-cards")
         self.assertEqual(result["visualPriority"], "visual-first")
         self.assertEqual(len(result["sections"]), 2)
         self.assertGreaterEqual(len(result["summary"]), 2)
@@ -39,9 +39,12 @@ class FreeReportParserTests(unittest.TestCase):
         self.assertIn("cards", result)
         self.assertGreaterEqual(len(result["cards"]), 4)
         self.assertEqual(result["cards"][0]["type"], "hero-summary-card")
+        self.assertEqual(result["cards"][1]["type"], "section-header-card")
+        self.assertEqual(result["cards"][2]["type"], "topic-card")
         self.assertIn("visualType", result["cards"][0])
         self.assertIn("内需托底", result["sections"][0]["blocks"][0]["summary"])
         self.assertTrue(result["sections"][0]["blocks"][0]["bullets"])
+        self.assertIn("claim", result["cards"][2])
 
     def test_parse_detects_multi_asset_comparison(self):
         module = load_module()
@@ -57,8 +60,8 @@ class FreeReportParserTests(unittest.TestCase):
 供给扰动支撑价格，但需求侧仍有反复。"""
         )
         self.assertEqual(result["contentType"], "multi-asset-comparison")
-        self.assertEqual(result["layoutFamily"], "comparison-boards")
-        self.assertTrue(any(card["type"] == "comparison-card" for card in result["cards"]))
+        self.assertEqual(result["layoutFamily"], "sequential-cards")
+        self.assertTrue(any(card["type"] == "topic-card" for card in result["cards"]))
         self.assertTrue(any(card.get("visualType") == "comparison-strip" for card in result["cards"]))
 
     def test_parse_detects_score_evaluation(self):
@@ -76,9 +79,9 @@ class FreeReportParserTests(unittest.TestCase):
 • 悲观情景 (25%)：风险偏好回落，高估值承压。"""
         )
         self.assertEqual(result["contentType"], "score-evaluation")
-        self.assertEqual(result["layoutFamily"], "scorecards-with-probabilities")
-        self.assertTrue(any(card["type"] == "probability-card" for card in result["cards"]))
-        self.assertTrue(any(card["type"] == "mini-bar-card" for card in result["cards"]))
+        self.assertEqual(result["layoutFamily"], "sequential-cards")
+        self.assertTrue(any(card.get("visualType") == "score-dots" for card in result["cards"]))
+        self.assertTrue(any(card.get("visualType") == "probability-strip" for card in result["cards"]))
 
     def test_parse_detects_generic_explainer_and_svg_visuals(self):
         module = load_module()
@@ -96,7 +99,7 @@ class FreeReportParserTests(unittest.TestCase):
 同时兼顾搜索、社交平台和模型引用场景。"""
         )
         self.assertEqual(result["contentType"], "generic-explainer")
-        self.assertEqual(result["layoutFamily"], "story-cards")
+        self.assertEqual(result["layoutFamily"], "sequential-cards")
         self.assertTrue(all("visualType" in card for card in result["cards"]))
         self.assertTrue(all("visualData" in card for card in result["cards"]))
         self.assertTrue(any(card.get("visualType") == "mini-flow" for card in result["cards"]))
