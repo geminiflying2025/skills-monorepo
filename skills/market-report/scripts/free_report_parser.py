@@ -89,11 +89,23 @@ def infer_visual_type(block: dict[str, Any], content_type: str) -> tuple[str, di
     if score is not None:
         return "score-dots", {"score": score, "label": title[:8]}
 
+    if any(keyword in combined for keyword in ["既不是", "不是线性的", "多节点", "耦合", "交错", "责任边界", "上下文丢失"]):
+        nodes = [{"label": item[:8]} for item in dedupe([title, claim, *bullets], limit=4)]
+        edges = []
+        for index in range(max(0, len(nodes) - 1)):
+            edges.append({"from": index, "to": index + 1, "label": "影响"})
+        if len(nodes) >= 3:
+            edges.append({"from": 0, "to": 2, "label": "耦合"})
+        return "dynamic-svg", {"kind": "relationship-map", "nodes": nodes, "edges": edges}
+
     if content_type == "generic-explainer":
         return "mini-flow", {"steps": dedupe([claim, *bullets], limit=3)}
 
     if content_type == "multi-asset-comparison":
         return "comparison-strip", {"items": [{"label": title[:8], "value": 72}]}
+
+    if "成长" in combined or "风格" in combined or "占优" in combined or "活跃" in combined:
+        return "position-map", {"items": [{"label": item[:8], "value": i + 1} for i, item in enumerate(dedupe([claim, *bullets], limit=3))]}
 
     if "区间" in combined or "震荡" in combined:
         return "range-band", {"label": title[:8], "start": 30, "end": 78}
@@ -244,7 +256,7 @@ def build_cards(sections: list[dict[str, Any]], hero: dict[str, Any], content_ty
             visual_type, visual_data = infer_visual_type(block, content_type)
             cards.append(
                 {
-                    "type": "topic-card",
+                    "type": "dynamic-svg-card" if visual_type == "dynamic-svg" else "topic-card",
                     "sectionTitle": section["title"],
                     "title": block["title"],
                     "claim": block.get("claim", ""),

@@ -104,6 +104,21 @@ class FreeReportParserTests(unittest.TestCase):
         self.assertTrue(all("visualData" in card for card in result["cards"]))
         self.assertTrue(any(card.get("visualType") == "mini-flow" for card in result["cards"]))
 
+    def test_parse_uses_dynamic_svg_fallback_when_no_component_fits(self):
+        module = load_module()
+        result = module.parse_free_report_text(
+            """组织协作的新瓶颈
+一、复杂耦合
+1. 协同断点
+团队之间的信息传递既不是线性的，也不是简单层级式的，而是多节点反复往返、伴随角色切换和上下文丢失。
+2. 决策摩擦
+问题不在单点效率，而在多方判断标准、时间窗口和责任边界交错，导致推进路径持续扭曲。"""
+        )
+        self.assertTrue(any(card.get("type") == "dynamic-svg-card" for card in result["cards"]))
+        dynamic_card = next(card for card in result["cards"] if card.get("type") == "dynamic-svg-card")
+        self.assertEqual(dynamic_card.get("visualType"), "dynamic-svg")
+        self.assertIn("kind", dynamic_card.get("visualData", {}))
+
 
 if __name__ == "__main__":
     unittest.main()

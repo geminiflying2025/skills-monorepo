@@ -41,6 +41,7 @@ class RenderFreeReportTests(unittest.TestCase):
                 {"type": "hero-summary-card", "headline": "内需修复，外部扰动上升", "highlights": ["成长仍活跃"], "visualType": "constellation", "visualData": {"nodes": [{"label": "内需修复", "value": 1}] }},
                 {"type": "section-header-card", "title": "宏观大类", "summary": "内需托底"},
                 {"type": "topic-card", "title": "宏观环境", "claim": "政策基调偏积极", "bullets": ["内需修复", "结构分化"], "visualType": "mini-flow", "visualData": {"steps": ["内需修复", "结构分化"]}},
+                {"type": "dynamic-svg-card", "title": "复杂耦合", "claim": "多节点反复往返", "bullets": ["角色切换", "上下文丢失"], "visualType": "dynamic-svg", "visualData": {"kind": "relationship-map", "nodes": [{"label": "团队A"}, {"label": "团队B"}], "edges": [{"from": 0, "to": 1, "label": "往返"}]}},
             ],
             "sections": [
                 {
@@ -67,6 +68,10 @@ class RenderFreeReportTests(unittest.TestCase):
         self.assertIn("FREE_REPORT_BRIEF.cards", app_source)
         self.assertIn("SvgVisual", app_source)
         self.assertIn("topic-card", constants)
+        self.assertIn("SvgEditorialScoreDots", app_source)
+        self.assertIn("SvgTrendBand", app_source)
+        self.assertIn("SvgPositionMap", app_source)
+        self.assertIn("SvgDynamicDiagram", app_source)
 
 
 if __name__ == "__main__":
