@@ -104,10 +104,14 @@ async function main() {
 
   const manifest = JSON.parse(await readFile(manifestPath, "utf-8"));
   const appDir = manifest.appDir;
+  const entryHtml = manifest.entryHtml || null;
   const distDir = path.join(appDir, "dist");
 
-  await ensureAppBuilt(appDir);
-  const server = await createStaticServer(distDir, port);
+  if (!entryHtml) {
+    await ensureAppBuilt(appDir);
+  }
+  const serverRoot = entryHtml ? appDir : distDir;
+  const server = await createStaticServer(serverRoot, port);
 
   try {
     const browser = await chromium.launch({ headless: true });
@@ -141,16 +145,23 @@ async function main() {
 
     const dataUrl = await page.evaluate(async () => {
       const exporter = window.__MARKET_REPORT_EXPORT__;
-      if (typeof exporter !== "function") {
-        throw new Error("window.__MARKET_REPORT_EXPORT__ is not available");
+      if (typeof exporter === "function") {
+        return exporter();
       }
-      return exporter();
+      const target = document.documentElement;
+      if (!target) {
+        throw new Error("No document root available for screenshot export");
+      }
+      return null;
     });
-    if (!dataUrl || typeof dataUrl !== "string" || !dataUrl.startsWith("data:image/png;base64,")) {
-      throw new Error("Original project export did not return a PNG data URL");
+    if (typeof dataUrl === "string" && dataUrl.startsWith("data:image/png;base64,")) {
+      const base64 = dataUrl.replace("data:image/png;base64,", "");
+      await writeFile(outputPath, Buffer.from(base64, "base64"));
+      await browser.close();
+      return;
     }
-    const base64 = dataUrl.replace("data:image/png;base64,", "");
-    await writeFile(outputPath, Buffer.from(base64, "base64"));
+
+    await page.screenshot({ path: outputPath, fullPage: true, type: "png" });
     await browser.close();
   } finally {
     await new Promise((resolve, reject) => {
