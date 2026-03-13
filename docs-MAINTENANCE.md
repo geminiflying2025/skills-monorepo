@@ -67,6 +67,17 @@ That boundary should be reflected in the docs:
 - Inventory files may record machine paths as operational metadata, but those
   paths should not become the default authoring convention
 
+## Output Convention
+
+When running skills from this repository for development or verification,
+default generated artifacts should be written to the repository root `output/`
+directory.
+
+- Put temporary or reviewable outputs in `./output/`
+- Do not commit generated output files
+- Keep only a placeholder file such as `output/.gitkeep` so the directory
+  exists in a clean checkout
+
 ## Deployment
 
 ### Deploy one skill locally
