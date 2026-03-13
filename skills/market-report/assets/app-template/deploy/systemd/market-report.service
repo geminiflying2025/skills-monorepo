@@ -1,0 +1,16 @@
+[Unit]
+Description=Market Report FastAPI service
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/market-report
+EnvironmentFile=/etc/market-report.env
+ExecStart=/opt/market-report/.venv/bin/python -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8010
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

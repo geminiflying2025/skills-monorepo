@@ -1,0 +1,4 @@
+interface:
+  display_name: "Market Report"
+  short_description: "Turn market research into PNG long images"
+  default_prompt: "Use $market-report to turn market research text or files into a PNG long image."

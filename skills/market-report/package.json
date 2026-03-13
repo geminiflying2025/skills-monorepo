@@ -1,0 +1,8 @@
+{
+  "name": "market-report-skill-tooling",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "playwright": "^1.58.2"
+  }
+}
