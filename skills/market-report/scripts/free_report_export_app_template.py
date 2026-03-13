@@ -90,15 +90,17 @@ APP_TEMPLATE = dedent(
 
     function SvgConstellation({ items, accent }: { items: any[]; accent: string }) {
       return (
-        <svg viewBox="0 0 420 120" className="h-[120px] w-full">
+        <svg viewBox="0 0 860 140" className="h-[140px] w-full">
+          <rect x="0" y="0" width="860" height="140" rx="24" fill="rgba(255,255,255,0.03)" />
           {items.slice(0, 4).map((item, index) => {
-            const x = 60 + index * 95;
-            const y = index % 2 === 0 ? 35 : 70;
+            const x = 110 + index * 205;
+            const y = index % 2 === 0 ? 44 : 84;
             return (
               <g key={index}>
-                {index > 0 ? <line x1={x - 60} y1={index % 2 === 0 ? 70 : 35} x2={x} y2={y} stroke="rgba(255,255,255,0.35)" strokeWidth="2" /> : null}
-                <circle cx={x} cy={y} r="13" fill={accent} />
-                <text x={x} y={108} textAnchor="middle" fontSize="11" fill="#CBD5E1">{(item.label || '').slice(0, 8)}</text>
+                {index > 0 ? <line x1={x - 118} y1={index % 2 === 0 ? 84 : 44} x2={x} y2={y} stroke="rgba(255,255,255,0.35)" strokeWidth="3" /> : null}
+                <circle cx={x} cy={y} r="18" fill={accent} />
+                <circle cx={x} cy={y} r="30" fill={accent} opacity="0.14" />
+                <text x={x} y={126} textAnchor="middle" fontSize="22" fill="#CBD5E1">{(item.label || '').slice(0, 8)}</text>
               </g>
             );
           })}
@@ -109,20 +111,20 @@ APP_TEMPLATE = dedent(
     function SvgScoreGrid({ data, accent }: { data: any; accent: string }) {
       const rows = data.rows || [];
       return (
-        <svg viewBox="0 0 420 170" className="h-[170px] w-full">
-          <rect x="0" y="0" width="420" height="170" rx="22" fill="#F8FAFC" />
-          <text x="18" y="24" fontSize="12" fill="#64748B">宏观温度计（示意）</text>
-          <TagPill x={302} y={12} label={data.badge || '观点偏强'} fill="#DBEAFE" textFill="#1D4ED8" width={96} />
-          {data.secondaryBadge ? <TagPill x={314} y={40} label={data.secondaryBadge} fill="#FEF3C7" textFill="#92400E" width={84} /> : null}
+        <svg viewBox="0 0 860 190" className="h-[190px] w-full">
+          <rect x="0" y="0" width="860" height="190" rx="24" fill="#F8FAFC" />
+          <text x="28" y="28" fontSize="20" fill="#64748B">宏观温度计（示意）</text>
+          <TagPill x={660} y={16} label={data.badge || '观点偏强'} fill="#DBEAFE" textFill="#1D4ED8" width={132} />
+          {data.secondaryBadge ? <TagPill x={678} y={50} label={data.secondaryBadge} fill="#FEF3C7" textFill="#92400E" width={112} /> : null}
           {rows.slice(0, 5).map((row: any, index: number) => (
-            <g key={index} transform={`translate(18, ${52 + index * 22})`}>
-              <text x="0" y="10" fontSize="11" fill="#475569">{row.label}</text>
+            <g key={index} transform={`translate(28, ${62 + index * 26})`}>
+              <text x="0" y="12" fontSize="18" fill="#475569">{row.label}</text>
               {Array.from({ length: 5 }).map((_, dotIndex) => (
                 <circle
                   key={dotIndex}
-                  cx={178 + dotIndex * 24}
-                  cy={6}
-                  r="6.5"
+                  cx={520 + dotIndex * 46}
+                  cy={8}
+                  r="11"
                   fill={dotIndex < (row.level || 3) ? toneColor(row.tone, accent) : '#D6DEEA'}
                 />
               ))}
@@ -136,35 +138,35 @@ APP_TEMPLATE = dedent(
       const stages = data.stages || [];
       const tags = data.tags || [];
       return (
-        <svg viewBox="0 0 420 168" className="h-[168px] w-full">
-          <rect x="0" y="0" width="420" height="168" rx="22" fill="#F8FAFC" />
-          <text x="18" y="24" fontSize="12" fill="#64748B">市场主线切换</text>
+        <svg viewBox="0 0 860 196" className="h-[196px] w-full">
+          <rect x="0" y="0" width="860" height="196" rx="24" fill="#F8FAFC" />
+          <text x="28" y="28" fontSize="20" fill="#64748B">市场主线切换</text>
           <defs>
             <marker id="editorial-arrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
               <path d="M0,0 L6,3 L0,6 Z" fill="#94A3B8" />
             </marker>
           </defs>
           {stages.slice(0, 3).map((label: string, index: number) => {
-            const x = 18 + index * 132;
+            const x = 30 + index * 265;
             const fill = index === 1 ? '#BFD4FF' : index === 2 ? '#0F204A' : '#E2E8F0';
             const textFill = index === 2 ? '#FFFFFF' : '#0F172A';
             return (
               <g key={index}>
-                <rect x={x} y="44" width="112" height="50" rx="18" fill={fill} />
-                <text x={x + 56} y="73" textAnchor="middle" fontSize="12" fill={textFill}>{label}</text>
-                {index < 2 ? <line x1={x + 116} y1="69" x2={x + 130} y2="69" stroke="#94A3B8" strokeWidth="2.5" markerEnd="url(#editorial-arrow)" /> : null}
+                <rect x={x} y="54" width="200" height="58" rx="20" fill={fill} />
+                <text x={x + 100} y="89" textAnchor="middle" fontSize="22" fill={textFill}>{label}</text>
+                {index < 2 ? <line x1={x + 212} y1="83" x2={x + 246} y2="83" stroke="#94A3B8" strokeWidth="3" markerEnd="url(#editorial-arrow)" /> : null}
               </g>
             );
           })}
           {tags.slice(0, 4).map((tag: string, index: number) => (
             <TagPill
               key={index}
-              x={18 + (index % 2) * 130}
-              y={116 + Math.floor(index / 2) * 28}
+              x={30 + index * 195}
+              y={142}
               label={tag}
               fill={index === 0 ? '#DBEAFE' : index === 1 ? '#E2E8F0' : index === 2 ? '#FEF3C7' : '#ECFDF5'}
               textFill={index === 0 ? '#1D4ED8' : index === 1 ? '#334155' : index === 2 ? '#92400E' : '#047857'}
-              width={102}
+              width={168}
             />
           ))}
         </svg>
@@ -174,19 +176,19 @@ APP_TEMPLATE = dedent(
     function SvgRangePosition({ data, accent }: { data: any; accent: string }) {
       const start = data.start || 26;
       const end = data.end || 76;
-      const position = 44 + ((start + end) / 2) * 2.2;
+      const position = 72 + ((start + end) / 2) * 4.4;
       return (
-        <svg viewBox="0 0 420 150" className="h-[150px] w-full">
-          <rect x="0" y="0" width="420" height="150" rx="22" fill="#F8FAFC" />
-          <text x="18" y="24" fontSize="12" fill="#64748B">{data.label || '区间运行示意'}</text>
-          <line x1="44" y1="86" x2="374" y2="86" stroke="#CBD5E1" strokeWidth="2" strokeDasharray="7 7" />
-          <rect x={44 + start * 2.2} y="68" width={Math.max(88, (end - start) * 2.2)} height="36" rx="18" fill="#CFE0FF" />
-          <circle cx={position} cy="86" r="12" fill={accent} />
-          <text x={position} y="90" textAnchor="middle" fontSize="10" fill="#FFFFFF">震荡</text>
-          <path d="M 44 58 C 110 36, 184 74, 260 52 S 338 48, 374 54" stroke={accent} strokeWidth="3" fill="none" />
-          <text x="44" y="52" fontSize="10" fill="#64748B">{data.startLabel || '低位支撑'}</text>
-          <text x="374" y="52" textAnchor="end" fontSize="10" fill="#64748B">{data.endLabel || '上行受限'}</text>
-          <text x="210" y="132" textAnchor="middle" fontSize="10" fill="#64748B">{data.footnote || '票息 + 区间交易'}</text>
+        <svg viewBox="0 0 860 170" className="h-[170px] w-full">
+          <rect x="0" y="0" width="860" height="170" rx="24" fill="#F8FAFC" />
+          <text x="28" y="28" fontSize="20" fill="#64748B">{data.label || '区间运行示意'}</text>
+          <line x1="72" y1="94" x2="790" y2="94" stroke="#CBD5E1" strokeWidth="3" strokeDasharray="10 10" />
+          <rect x={72 + start * 4.4} y="72" width={Math.max(160, (end - start) * 4.4)} height="44" rx="22" fill="#CFE0FF" />
+          <circle cx={position} cy="94" r="14" fill={accent} />
+          <text x={position} y="99" textAnchor="middle" fontSize="12" fill="#FFFFFF">震荡</text>
+          <path d="M 72 60 C 210 20, 360 120, 520 56 S 700 46, 790 58" stroke={accent} strokeWidth="4" fill="none" />
+          <text x="72" y="54" fontSize="16" fill="#64748B">{data.startLabel || '低位支撑'}</text>
+          <text x="790" y="54" textAnchor="end" fontSize="16" fill="#64748B">{data.endLabel || '上行受限'}</text>
+          <text x="430" y="146" textAnchor="middle" fontSize="16" fill="#64748B">{data.footnote || '票息 + 区间交易'}</text>
         </svg>
       );
     }
@@ -195,28 +197,28 @@ APP_TEMPLATE = dedent(
       const items = data.items || [];
       const tags = data.tags || [];
       return (
-        <svg viewBox="0 0 420 162" className="h-[162px] w-full">
-          <rect x="0" y="0" width="420" height="162" rx="22" fill="#F8FAFC" />
-          <text x="18" y="24" fontSize="12" fill="#64748B">驱动拆解</text>
+        <svg viewBox="0 0 860 184" className="h-[184px] w-full">
+          <rect x="0" y="0" width="860" height="184" rx="24" fill="#F8FAFC" />
+          <text x="28" y="28" fontSize="20" fill="#64748B">驱动拆解</text>
           {items.slice(0, 3).map((item: any, index: number) => {
-            const x = 44 + index * 118;
+            const x = 108 + index * 220;
             return (
               <g key={index}>
-                <rect x={x} y={52 + (index === 1 ? 10 : 0)} width="26" height={50 + index * 12} rx="10" fill={toneColor(item.tone, accent)} />
-                <rect x={x - 6} y="42" width="38" height="82" rx="14" fill="none" stroke="#D7DFEA" strokeDasharray="6 6" />
-                <text x={x + 13} y="138" textAnchor="middle" fontSize="11" fill="#475569">{item.label}</text>
+                <rect x={x} y={62 + (index === 1 ? 12 : 0)} width="46" height={62 + index * 18} rx="14" fill={toneColor(item.tone, accent)} />
+                <rect x={x - 10} y="50" width="66" height="108" rx="18" fill="none" stroke="#D7DFEA" strokeDasharray="8 8" />
+                <text x={x + 23} y="174" textAnchor="middle" fontSize="18" fill="#475569">{item.label}</text>
               </g>
             );
           })}
           {tags.slice(0, 4).map((tag: string, index: number) => (
             <TagPill
               key={index}
-              x={18 + index * 96}
-              y={138}
+              x={28 + index * 195}
+              y={148}
               label={tag}
               fill={index === 0 ? '#FEF3C7' : index === 1 ? '#DBEAFE' : index === 2 ? '#ECFDF5' : '#F1F5F9'}
               textFill={index === 0 ? '#92400E' : index === 1 ? '#1D4ED8' : index === 2 ? '#047857' : '#334155'}
-              width={82}
+              width={170}
             />
           ))}
         </svg>
@@ -227,28 +229,28 @@ APP_TEMPLATE = dedent(
       const points = data.points || [];
       const tags = data.tags || [];
       return (
-        <svg viewBox="0 0 420 186" className="h-[186px] w-full">
-          <rect x="0" y="0" width="420" height="186" rx="22" fill="#F8FAFC" />
-          <text x="18" y="24" fontSize="12" fill="#64748B">风格热度示意</text>
-          <rect x="86" y="38" width="248" height="96" rx="18" fill="#FFFFFF" stroke="#E2E8F0" />
-          <line x1="210" y1="48" x2="210" y2="124" stroke="#CBD5E1" strokeWidth="2" />
-          <line x1="98" y1="86" x2="322" y2="86" stroke="#CBD5E1" strokeWidth="2" />
-          <text x="210" y="56" textAnchor="middle" fontSize="10" fill="#94A3B8">成长</text>
-          <text x="210" y="122" textAnchor="middle" fontSize="10" fill="#94A3B8">价值</text>
-          <text x="102" y="90" fontSize="10" fill="#94A3B8">小盘</text>
-          <text x="288" y="90" fontSize="10" fill="#94A3B8">大盘</text>
+        <svg viewBox="0 0 860 208" className="h-[208px] w-full">
+          <rect x="0" y="0" width="860" height="208" rx="24" fill="#F8FAFC" />
+          <text x="28" y="28" fontSize="20" fill="#64748B">风格热度示意</text>
+          <rect x="120" y="42" width="620" height="104" rx="18" fill="#FFFFFF" stroke="#E2E8F0" />
+          <line x1="430" y1="54" x2="430" y2="134" stroke="#CBD5E1" strokeWidth="2" />
+          <line x1="140" y1="94" x2="720" y2="94" stroke="#CBD5E1" strokeWidth="2" />
+          <text x="430" y="58" textAnchor="middle" fontSize="16" fill="#94A3B8">成长</text>
+          <text x="430" y="140" textAnchor="middle" fontSize="16" fill="#94A3B8">价值</text>
+          <text x="146" y="98" fontSize="16" fill="#94A3B8">小盘</text>
+          <text x="656" y="98" fontSize="16" fill="#94A3B8">大盘</text>
           {points.slice(0, 3).map((point: any, index: number) => {
-            const x = 86 + (point.x || 0.5) * 248;
-            const y = 38 + (point.y || 0.5) * 96;
+            const x = 120 + (point.x || 0.5) * 620;
+            const y = 42 + (point.y || 0.5) * 104;
             return (
               <g key={index}>
-                <circle cx={x} cy={y} r={index === 0 ? 12 : 10} fill={toneColor(point.tone, accent)} />
-                <text x={x + 16} y={y + 4} fontSize="11" fill="#334155">{point.label}</text>
+                <circle cx={x} cy={y} r={index === 0 ? 18 : 14} fill={toneColor(point.tone, accent)} />
+                <text x={x + 22} y={y + 6} fontSize="18" fill="#334155">{point.label}</text>
               </g>
             );
           })}
           {tags.slice(0, 4).map((tag: string, index: number) => (
-            <TagPill key={index} x={18 + index * 96} y={146} label={tag} fill="#EFF6FF" textFill="#1D4ED8" width={82} />
+            <TagPill key={index} x={28 + index * 195} y={162} label={tag} fill="#EFF6FF" textFill="#1D4ED8" width={170} />
           ))}
         </svg>
       );
@@ -258,27 +260,27 @@ APP_TEMPLATE = dedent(
       const point = data.point || { x: 0.4, y: 0.3, label: '当前阶段' };
       const tags = data.tags || [];
       return (
-        <svg viewBox="0 0 420 182" className="h-[182px] w-full">
-          <rect x="0" y="0" width="420" height="182" rx="22" fill="#F8FAFC" />
-          <text x="18" y="24" fontSize="12" fill="#64748B">市场中性环境示意</text>
-          <rect x="96" y="40" width="228" height="92" rx="18" fill="#FFFFFF" stroke="#E2E8F0" />
-          <line x1="210" y1="50" x2="210" y2="122" stroke="#CBD5E1" strokeWidth="2" />
-          <line x1="108" y1="86" x2="312" y2="86" stroke="#CBD5E1" strokeWidth="2" />
-          <text x="210" y="56" textAnchor="middle" fontSize="10" fill="#94A3B8">风格分化高</text>
-          <text x="210" y="122" textAnchor="middle" fontSize="10" fill="#94A3B8">风格分化低</text>
-          <text x="112" y="90" fontSize="10" fill="#94A3B8">对冲便宜</text>
-          <text x="266" y="90" fontSize="10" fill="#94A3B8">对冲偏贵</text>
-          <circle cx={96 + (point.x || 0.4) * 228} cy={40 + (point.y || 0.3) * 92} r="12" fill="#14B8A6" />
-          <text x={96 + (point.x || 0.4) * 228 + 16} y={40 + (point.y || 0.3) * 92 + 4} fontSize="11" fill="#334155">{point.label}</text>
+        <svg viewBox="0 0 860 208" className="h-[208px] w-full">
+          <rect x="0" y="0" width="860" height="208" rx="24" fill="#F8FAFC" />
+          <text x="28" y="28" fontSize="20" fill="#64748B">市场中性环境示意</text>
+          <rect x="150" y="42" width="560" height="106" rx="18" fill="#FFFFFF" stroke="#E2E8F0" />
+          <line x1="430" y1="54" x2="430" y2="136" stroke="#CBD5E1" strokeWidth="2" />
+          <line x1="170" y1="95" x2="690" y2="95" stroke="#CBD5E1" strokeWidth="2" />
+          <text x="430" y="58" textAnchor="middle" fontSize="16" fill="#94A3B8">风格分化高</text>
+          <text x="430" y="142" textAnchor="middle" fontSize="16" fill="#94A3B8">风格分化低</text>
+          <text x="176" y="99" fontSize="16" fill="#94A3B8">对冲便宜</text>
+          <text x="594" y="99" fontSize="16" fill="#94A3B8">对冲偏贵</text>
+          <circle cx={150 + (point.x || 0.4) * 560} cy={42 + (point.y || 0.3) * 106} r="18" fill="#14B8A6" />
+          <text x={150 + (point.x || 0.4) * 560 + 24} y={42 + (point.y || 0.3) * 106 + 6} fontSize="18" fill="#334155">{point.label}</text>
           {tags.slice(0, 3).map((tag: string, index: number) => (
             <TagPill
               key={index}
-              x={104 + index * 84}
-              y={144}
+              x={154 + index * 182}
+              y={164}
               label={tag}
               fill={index === 0 ? '#DBEAFE' : index === 1 ? '#ECFDF5' : '#FEF3C7'}
               textFill={index === 0 ? '#1D4ED8' : index === 1 ? '#047857' : '#92400E'}
-              width={76}
+              width={160}
             />
           ))}
         </svg>
@@ -289,29 +291,29 @@ APP_TEMPLATE = dedent(
       const bars = data.bars || [];
       const tags = data.tags || [];
       return (
-        <svg viewBox="0 0 420 168" className="h-[168px] w-full">
-          <rect x="0" y="0" width="420" height="168" rx="22" fill="#F8FAFC" />
-          <text x="18" y="24" fontSize="12" fill="#64748B">周期适配度示意</text>
+        <svg viewBox="0 0 860 190" className="h-[190px] w-full">
+          <rect x="0" y="0" width="860" height="190" rx="24" fill="#F8FAFC" />
+          <text x="28" y="28" fontSize="20" fill="#64748B">周期适配度示意</text>
           {bars.slice(0, 3).map((bar: any, index: number) => {
-            const x = 110 + index * 92;
-            const h = (bar.value || 3) * 20;
+            const x = 176 + index * 170;
+            const h = (bar.value || 3) * 24;
             return (
               <g key={index}>
-                <rect x={x} y={52} width="42" height="104" rx="14" fill="none" stroke="#D6DEEA" strokeDasharray="6 6" />
-                <rect x={x} y={156 - h} width="42" height={h} rx="14" fill={toneColor(bar.tone, accent)} />
-                <text x={x + 21} y="164" textAnchor="middle" fontSize="10" fill="#475569">{bar.label}</text>
+                <rect x={x} y={58} width="72" height="112" rx="18" fill="none" stroke="#D6DEEA" strokeDasharray="8 8" />
+                <rect x={x} y={170 - h} width="72" height={h} rx="18" fill={toneColor(bar.tone, accent)} />
+                <text x={x + 36} y="182" textAnchor="middle" fontSize="18" fill="#475569">{bar.label}</text>
               </g>
             );
           })}
           {tags.slice(0, 3).map((tag: string, index: number) => (
             <TagPill
               key={index}
-              x={98 + index * 98}
+              x={150 + index * 190}
               y={146}
               label={tag}
               fill={index === 0 ? '#DBEAFE' : index === 1 ? '#ECFDF5' : '#FEF3C7'}
               textFill={index === 0 ? '#1D4ED8' : index === 1 ? '#047857' : '#92400E'}
-              width={86}
+              width={170}
             />
           ))}
         </svg>
@@ -321,17 +323,17 @@ APP_TEMPLATE = dedent(
     function SvgStructuredList({ data, accent }: { data: any; accent: string }) {
       const rows = data.rows || [];
       return (
-        <svg viewBox="0 0 420 180" className="h-[180px] w-full">
-          <rect x="0" y="0" width="420" height="180" rx="22" fill="#F8FAFC" />
-          <text x="18" y="24" fontSize="12" fill="#64748B">资金方向示意</text>
+        <svg viewBox="0 0 860 198" className="h-[198px] w-full">
+          <rect x="0" y="0" width="860" height="198" rx="24" fill="#F8FAFC" />
+          <text x="28" y="28" fontSize="20" fill="#64748B">资金方向示意</text>
           {rows.slice(0, 5).map((row: any, index: number) => {
-            const y = 42 + index * 26;
+            const y = 42 + index * 30;
             const isUp = row.direction === 'up';
             return (
               <g key={index}>
-                <rect x="18" y={y} width="384" height="20" rx="10" fill="#FFFFFF" stroke="#E2E8F0" />
-                <text x="32" y={y + 13} fontSize="10.5" fill="#334155">{row.label}</text>
-                <text x="388" y={y + 13} textAnchor="end" fontSize="12" fill={isUp ? accent : '#F59E0B'}>
+                <rect x="28" y={y} width="804" height="22" rx="11" fill="#FFFFFF" stroke="#E2E8F0" />
+                <text x="48" y={y + 15} fontSize="16" fill="#334155">{row.label}</text>
+                <text x="812" y={y + 15} textAnchor="end" fontSize="18" fill={isUp ? accent : '#F59E0B'}>
                   {isUp ? '↗' : '↘'}
                 </text>
               </g>
@@ -346,29 +348,29 @@ APP_TEMPLATE = dedent(
       const line = data.line || [];
       const tags = data.tags || [];
       const linePath = line.map((point: number, index: number) => {
-        const x = 34 + index * 58;
-        const y = 114 - point * 0.9;
+        const x = 56 + index * 116;
+        const y = 128 - point * 1.2;
         return `${index === 0 ? 'M' : 'L'} ${x} ${y}`;
       }).join(' ');
       return (
-        <svg viewBox="0 0 420 172" className="h-[172px] w-full">
-          <rect x="0" y="0" width="420" height="172" rx="22" fill="#F8FAFC" />
-          <text x="18" y="24" fontSize="12" fill="#64748B">成交与情绪示意</text>
+        <svg viewBox="0 0 860 198" className="h-[198px] w-full">
+          <rect x="0" y="0" width="860" height="198" rx="24" fill="#F8FAFC" />
+          <text x="28" y="28" fontSize="20" fill="#64748B">成交与情绪示意</text>
           {bars.slice(0, 6).map((bar: number, index: number) => {
-            const x = 26 + index * 58;
-            const h = bar * 0.7;
-            return <rect key={index} x={x} y={124 - h} width="24" height={h} rx="8" fill="#2F5BEA" opacity={0.38 + index * 0.08} />;
+            const x = 44 + index * 116;
+            const h = bar * 1.0;
+            return <rect key={index} x={x} y={146 - h} width="44" height={h} rx="14" fill="#2F5BEA" opacity={0.38 + index * 0.08} />;
           })}
-          <path d={linePath} stroke="#C9A227" strokeWidth="3.2" fill="none" />
+          <path d={linePath} stroke="#C9A227" strokeWidth="5" fill="none" />
           {tags.slice(0, 3).map((tag: string, index: number) => (
             <TagPill
               key={index}
-              x={18 + index * 102}
-              y={136}
+              x={28 + index * 195}
+              y={160}
               label={tag}
               fill={index === 0 ? '#DBEAFE' : index === 1 ? '#FEF3C7' : '#F1F5F9'}
               textFill={index === 0 ? '#1D4ED8' : index === 1 ? '#92400E' : '#334155'}
-              width={90}
+              width={170}
             />
           ))}
         </svg>
@@ -377,16 +379,16 @@ APP_TEMPLATE = dedent(
 
     function SvgComparison({ items, accent }: { items: any[]; accent: string }) {
       return (
-        <svg viewBox="0 0 420 128" className="h-[128px] w-full">
-          <rect x="0" y="0" width="420" height="128" rx="20" fill="#F8FAFC" />
+        <svg viewBox="0 0 860 150" className="h-[150px] w-full">
+          <rect x="0" y="0" width="860" height="150" rx="24" fill="#F8FAFC" />
           {items.slice(0, 4).map((item, index) => {
-            const x = 34 + index * 92;
+            const x = 72 + index * 190;
             const value = Number(item.value || 60);
-            const h = 24 + value;
+            const h = 30 + value;
             return (
               <g key={index}>
-                <rect x={x} y={100 - h} width="42" height={h} rx="12" fill={index % 2 === 0 ? accent : '#AFC4FF'} />
-                <text x={x + 21} y="116" textAnchor="middle" fontSize="11" fill="#64748B">{(item.label || '').slice(0, 6)}</text>
+                <rect x={x} y={118 - h} width="74" height={h} rx="18" fill={index % 2 === 0 ? accent : '#AFC4FF'} />
+                <text x={x + 37} y="138" textAnchor="middle" fontSize="18" fill="#64748B">{(item.label || '').slice(0, 6)}</text>
               </g>
             );
           })}
@@ -396,22 +398,22 @@ APP_TEMPLATE = dedent(
 
     function SvgMiniFlow({ steps, accent }: { steps: string[]; accent: string }) {
       return (
-        <svg viewBox="0 0 420 128" className="h-[128px] w-full">
-          <rect x="0" y="0" width="420" height="128" rx="20" fill="#F8FAFC" />
+        <svg viewBox="0 0 860 150" className="h-[150px] w-full">
+          <rect x="0" y="0" width="860" height="150" rx="24" fill="#F8FAFC" />
           <defs>
             <marker id="mini-arrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
               <path d="M0,0 L6,3 L0,6 Z" fill="#94A3B8" />
             </marker>
           </defs>
           {steps.slice(0, 3).map((step, index) => {
-            const x = 18 + index * 130;
+            const x = 38 + index * 260;
             return (
               <g key={index}>
-                <rect x={x} y="38" width="110" height="44" rx="16" fill={index === 1 ? accent : '#E9EFF8'} />
-                <text x={x + 55} y="64" textAnchor="middle" fontSize="12" fill={index === 1 ? '#fff' : '#0F172A'}>
+                <rect x={x} y="42" width="190" height="52" rx="18" fill={index === 1 ? accent : '#E9EFF8'} />
+                <text x={x + 95} y="74" textAnchor="middle" fontSize="20" fill={index === 1 ? '#fff' : '#0F172A'}>
                   {(step || '').slice(0, 10)}
                 </text>
-                {index < 2 ? <line x1={x + 112} y1="60" x2={x + 128} y2="60" stroke="#94A3B8" strokeWidth="2.5" markerEnd="url(#mini-arrow)" /> : null}
+                {index < 2 ? <line x1={x + 202} y1="68" x2={x + 238} y2="68" stroke="#94A3B8" strokeWidth="3" markerEnd="url(#mini-arrow)" /> : null}
               </g>
             );
           })}
@@ -423,14 +425,14 @@ APP_TEMPLATE = dedent(
       const nodes = data.nodes || [];
       const edges = data.edges || [];
       const positions = [
-        [84, 44],
-        [220, 34],
-        [164, 96],
-        [316, 86],
+        [120, 60],
+        [420, 44],
+        [310, 128],
+        [680, 112],
       ];
       return (
-        <svg viewBox="0 0 420 144" className="h-[144px] w-full">
-          <rect x="0" y="0" width="420" height="144" rx="22" fill="#F8FAFC" />
+        <svg viewBox="0 0 860 180" className="h-[180px] w-full">
+          <rect x="0" y="0" width="860" height="180" rx="24" fill="#F8FAFC" />
           {edges.map((edge: any, index: number) => {
             const from = positions[edge.from] || positions[0];
             const to = positions[edge.to] || positions[1];
@@ -439,10 +441,10 @@ APP_TEMPLATE = dedent(
                 <path
                   d={`M ${from[0]} ${from[1]} C ${(from[0] + to[0]) / 2} ${from[1] - 24}, ${(from[0] + to[0]) / 2} ${to[1] + 24}, ${to[0]} ${to[1]}`}
                   stroke={accent}
-                  strokeWidth="2.5"
+                  strokeWidth="3"
                   fill="none"
                 />
-                <text x={(from[0] + to[0]) / 2} y={(from[1] + to[1]) / 2 - 8} textAnchor="middle" fontSize="10" fill="#64748B">
+                <text x={(from[0] + to[0]) / 2} y={(from[1] + to[1]) / 2 - 10} textAnchor="middle" fontSize="14" fill="#64748B">
                   {edge.label || ''}
                 </text>
               </g>
@@ -452,8 +454,8 @@ APP_TEMPLATE = dedent(
             const [x, y] = positions[index] || [80 + index * 60, 60];
             return (
               <g key={index}>
-                <circle cx={x} cy={y} r="18" fill={index % 2 === 0 ? accent : '#D7E3FF'} />
-                <text x={x} y={y + 4} textAnchor="middle" fontSize="10" fill={index % 2 === 0 ? '#fff' : '#0F172A'}>
+                <circle cx={x} cy={y} r="26" fill={index % 2 === 0 ? accent : '#D7E3FF'} />
+                <text x={x} y={y + 5} textAnchor="middle" fontSize="14" fill={index % 2 === 0 ? '#fff' : '#0F172A'}>
                   {(node.label || '').slice(0, 4)}
                 </text>
               </g>
@@ -465,15 +467,15 @@ APP_TEMPLATE = dedent(
 
     function SvgDotMatrix({ items, accent }: { items: any[]; accent: string }) {
       return (
-        <svg viewBox="0 0 420 128" className="h-[128px] w-full">
-          <rect x="0" y="0" width="420" height="128" rx="20" fill="#F8FAFC" />
+        <svg viewBox="0 0 860 150" className="h-[150px] w-full">
+          <rect x="0" y="0" width="860" height="150" rx="24" fill="#F8FAFC" />
           {items.slice(0, 4).map((item, row) => {
             const active = Number(item.value || 2);
             return (
-              <g key={row} transform={`translate(18, ${20 + row * 24})`}>
-                <text x="0" y="10" fontSize="11" fill="#64748B">{item.label || `Item ${row + 1}`}</text>
+              <g key={row} transform={`translate(28, ${26 + row * 28})`}>
+                <text x="0" y="14" fontSize="18" fill="#64748B">{item.label || `Item ${row + 1}`}</text>
                 {Array.from({ length: 6 }).map((_, col) => (
-                  <circle key={col} cx={178 + col * 24} cy={6} r="7" fill={col < active ? accent : '#D7DFEA'} />
+                  <circle key={col} cx={520 + col * 40} cy={8} r="10" fill={col < active ? accent : '#D7DFEA'} />
                 ))}
               </g>
             );
@@ -518,7 +520,7 @@ APP_TEMPLATE = dedent(
               ))}
             </div>
           ) : null}
-          <div className="mt-6 rounded-[22px] bg-slate-50 px-5 py-5">
+          <div className="mt-6 overflow-hidden rounded-[22px] border border-slate-200 bg-slate-50 px-0 py-0">
             <SvgVisual card={card} accent={accent} />
           </div>
         </article>
