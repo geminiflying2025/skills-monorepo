@@ -175,6 +175,27 @@ class FreeReportParserTests(unittest.TestCase):
         self.assertIn("rows", by_component["structured-list-card"]["visualData"])
         self.assertIn("bars", by_component["bar-line-narrative-card"]["visualData"])
 
+    def test_parse_derives_transition_and_signal_labels_from_text(self):
+        module = load_module()
+        result = module.parse_free_report_text(
+            """组织策略更新
+一、执行路径
+1. 研发协作：由临时补丁转向标准化流程
+团队当前从临时修补切换到标准化交付，并围绕评审、发布、复盘建立闭环。
+二、资源变化
+1. 资源流向：训练资源回升，推理资源承压
+训练资源继续回升，推理资源开始承压，跨团队支持有所下降。"""
+        )
+        topic_cards = [card for card in result["cards"] if card["type"] == "topic-card"]
+        phase_card = next(card for card in topic_cards if card["cardComponent"] == "phase-shift-card")
+        self.assertIn("临时补丁", "".join(phase_card["visualData"]["stages"]))
+        self.assertIn("标准化流程", "".join(phase_card["visualData"]["stages"]))
+
+        signal_card = next(card for card in topic_cards if card["cardComponent"] == "structured-list-card")
+        labels = [row["label"] for row in signal_card["visualData"]["rows"]]
+        self.assertTrue(any("训练资源" in label for label in labels))
+        self.assertTrue(any("推理资源" in label for label in labels))
+
 
 if __name__ == "__main__":
     unittest.main()

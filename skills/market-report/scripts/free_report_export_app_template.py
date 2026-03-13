@@ -556,12 +556,12 @@ APP_TEMPLATE = dedent(
       const highlights = summary.slice(1, 4);
 
       return (
-        <div className="min-h-screen bg-[#EEF2F6] px-8 py-10 text-slate-900">
-          <div ref={captureRef} className="mx-auto w-[1320px] overflow-hidden rounded-[28px] bg-[#EEF2F6] shadow-[0_35px_100px_rgba(15,23,42,0.12)]">
-            <section className="rounded-t-[28px] bg-[#12233F] px-14 pb-12 pt-12 text-white">
+        <div className="min-h-screen bg-[#EEF2F6] px-4 py-6 text-slate-900">
+          <div ref={captureRef} className="mx-auto w-[1080px] overflow-hidden rounded-[28px] bg-[#EEF2F6] shadow-[0_35px_100px_rgba(15,23,42,0.12)]">
+            <section className="rounded-t-[28px] bg-[#12233F] px-10 pb-10 pt-10 text-white">
               <div className="text-[12px] font-bold tracking-[0.24em] text-slate-300">FREE REPORT / VIEWPOINT + SCHEMATIC</div>
-              <h1 className="mt-4 text-[62px] font-black leading-[1.02] tracking-[-0.05em]">{FREE_REPORT_BRIEF.title}</h1>
-              <div className="mt-5 max-w-[980px] text-[24px] font-semibold leading-[1.6] text-white/95">{lead}</div>
+              <h1 className="mt-4 text-[58px] font-black leading-[1.04] tracking-[-0.05em]">{FREE_REPORT_BRIEF.title}</h1>
+              <div className="mt-5 max-w-[920px] text-[24px] font-semibold leading-[1.6] text-white/95">{lead}</div>
               {highlights.length ? (
                 <div className="mt-8 flex flex-wrap gap-3">
                   {highlights.map((item, index) => (
@@ -578,7 +578,7 @@ APP_TEMPLATE = dedent(
               ) : null}
             </section>
 
-            <main className="space-y-5 bg-[#EEF2F6] px-10 py-8">
+            <main className="space-y-5 bg-[#EEF2F6] px-6 py-6">
               {remainingCards.map((card, index) => {
                 if (card.type === 'section-header-card') {
                   return (

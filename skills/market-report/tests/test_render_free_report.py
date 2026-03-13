@@ -72,6 +72,8 @@ class RenderFreeReportTests(unittest.TestCase):
         self.assertIn("SvgRangePosition", app_source)
         self.assertIn("SvgPositionMap", app_source)
         self.assertIn("SvgDynamicDiagram", app_source)
+        self.assertIn("w-[1080px]", app_source)
+        self.assertIn("px-4 py-6", app_source)
 
 
 if __name__ == "__main__":

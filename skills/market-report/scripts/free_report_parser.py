@@ -65,6 +65,39 @@ def pick_labels(block: dict[str, Any], fallback: list[str], limit: int = 4) -> l
     return [short_label(item) or short_label(fallback[index]) for index, item in enumerate(candidates[:limit])]
 
 
+def extract_transition_stages(text: str) -> list[str]:
+    cleaned = text.replace("，", "").replace("。", "").strip()
+    patterns = [
+        r"由(.{1,12}?)转向(.{1,12})",
+        r"从(.{1,12}?)转向(.{1,12})",
+        r"从(.{1,12}?)切换到(.{1,12})",
+        r"由(.{1,12}?)切换到(.{1,12})",
+        r"从(.{1,12}?)到(.{1,12})",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, cleaned)
+        if match:
+            return [short_label(match.group(1), limit=10), "过渡", short_label(match.group(2), limit=10)]
+    return []
+
+
+def infer_direction(label: str) -> str:
+    if any(keyword in label for keyword in ["下降", "回落", "承压", "降温", "收缩", "减少", "走弱"]):
+        return "down"
+    return "up"
+
+
+def extract_signal_labels(block: dict[str, Any], limit: int = 5) -> list[str]:
+    raw_parts: list[str] = []
+    for item in [block.get("claim", ""), *block.get("bullets", [])]:
+        raw_parts.extend(re.split(r"[，,、；;]", item))
+    labels = [short_label(part, limit=10) for part in raw_parts if part.strip()]
+    labels = dedupe(labels, limit=limit)
+    if labels:
+        return labels
+    return pick_labels(block, ["信号一", "信号二", "信号三", "信号四", "信号五"], limit=limit)
+
+
 def extract_inline_claim(text: str) -> str:
     stripped = re.sub(r"^\d+[\.、]\s*", "", text.strip())
     for sep in ["：", ":"]:
@@ -131,9 +164,11 @@ def infer_visual_type(block: dict[str, Any], content_type: str) -> tuple[str, di
         return "score-grid", {"rows": rows, "badge": "内需主线", "badgeTone": "primary", "secondaryBadge": "外扰抬升"}
 
     if any(keyword in title for keyword in ["权益市场", "估值修复"]) or any(keyword in combined for keyword in ["估值修复", "业绩验证", "主线", "切换"]):
+        transition = extract_transition_stages(f"{title} {claim}") or extract_transition_stages(" ".join(bullets))
+        tags = pick_labels(block, ["高波动", "强分化", "验证期"], limit=4)
         return "phase-shift", {
-            "stages": ["情绪驱动", "估值修复", "业绩验证"],
-            "tags": ["高波动", "强分化", "高股息防御", "涨价链偏强"],
+            "stages": transition or pick_labels(block, ["起点", "过渡", "终点"], limit=3),
+            "tags": tags,
         }
 
     if any(keyword in title for keyword in ["债券市场", "利率"]) or any(keyword in combined for keyword in ["区间", "震荡", "票息", "汇率"]):
@@ -147,21 +182,22 @@ def infer_visual_type(block: dict[str, Any], content_type: str) -> tuple[str, di
             "footnote": "票息 + 区间交易",
         }
 
-    if any(keyword in title for keyword in ["商品市场", "黄金", "资源"]) or any(keyword in combined for keyword in ["黄金", "资源品", "原油", "铜", "铝"]):
+    if any(keyword in title for keyword in ["商品市场", "黄金"]) or any(keyword in combined for keyword in ["黄金", "资源品", "原油", "铜", "铝"]):
+        item_labels = pick_labels(block, ["主题一", "主题二", "主题三"], limit=3)
         return "theme-pillars", {
             "items": [
-                {"label": "黄金", "tone": "gold"},
-                {"label": "油价", "tone": "warning"},
-                {"label": "有色", "tone": "positive"},
+                {"label": item_labels[0], "tone": "gold"},
+                {"label": item_labels[1] if len(item_labels) > 1 else "主题二", "tone": "warning"},
+                {"label": item_labels[2] if len(item_labels) > 2 else "主题三", "tone": "positive"},
             ],
-            "tags": ["避险", "供给约束", "绿色转型", "资本开支偏弱"],
+            "tags": pick_labels(block, ["驱动一", "驱动二", "驱动三", "驱动四"], limit=4),
         }
 
     if any(keyword in title for keyword in ["市场中性", "对冲"]) or any(keyword in combined for keyword in ["量化", "基差", "对冲", "高换手"]):
         return "quadrant-signal", {
             "quadrants": ["对冲便宜", "对冲偏贵", "分化高", "分化低"],
             "point": {"x": 0.28, "y": 0.26, "label": "当前阶段"},
-            "tags": ["基差收敛", "高换手", "强分化"],
+            "tags": pick_labels(block, ["信号一", "信号二", "信号三"], limit=3),
         }
 
     if any(keyword in title for keyword in ["CTA", "周期"]) or any(keyword in combined for keyword in ["动量", "期限结构", "短周期", "中长周期"]):
@@ -171,34 +207,33 @@ def infer_visual_type(block: dict[str, Any], content_type: str) -> tuple[str, di
                 {"label": "中周期", "value": 4, "tone": "primary"},
                 {"label": "长周期", "value": 5, "tone": "ink"},
             ],
-            "tags": ["动量", "期限结构", "基本面修复"],
+            "tags": pick_labels(block, ["动量", "期限结构", "基本面"], limit=3),
         }
 
     if any(keyword in title for keyword in ["股票中观", "成长风格"]) or any(keyword in combined for keyword in ["成长", "风格", "制造", "周期"]):
+        labels = pick_labels(block, ["观察一", "观察二", "观察三", "观察四"], limit=4)
         return "position-map", {
             "points": [
-                {"label": "大盘成长", "x": 0.68, "y": 0.28, "tone": "ink"},
-                {"label": "中盘成长", "x": 0.57, "y": 0.42, "tone": "primary"},
+                {"label": labels[0], "x": 0.68, "y": 0.28, "tone": "ink"},
+                {"label": labels[1] if len(labels) > 1 else "重点二", "x": 0.57, "y": 0.42, "tone": "primary"},
             ],
-            "tags": ["石油石化", "汽车", "轻工制造", "传媒"],
-        }
-
-    if any(keyword in title for keyword in ["资金行为", "仓位"]) or any(keyword in combined for keyword in ["增配", "回落", "加仓", "流向"]):
-        return "structured-list", {
-            "rows": [
-                {"label": "公募仓位", "direction": "up"},
-                {"label": "消费配置", "direction": "up"},
-                {"label": "TMT 配置", "direction": "down"},
-                {"label": "小盘价值", "direction": "up"},
-                {"label": "中盘成长", "direction": "down"},
-            ]
+            "tags": labels[:4],
         }
 
     if any(keyword in title for keyword in ["流动性", "成交"]) or any(keyword in combined for keyword in ["成交", "情绪", "融券", "谨慎"]):
         return "bar-line-narrative", {
             "bars": [48, 72, 92, 88, 112, 126],
             "line": [62, 46, 54, 40, 48, 44],
-            "tags": ["成交高位", "融券回升", "情绪谨慎"],
+            "tags": pick_labels(block, ["信号一", "信号二", "信号三"], limit=3),
+        }
+
+    if any(keyword in title for keyword in ["资金行为", "仓位", "资源流向", "资源变化"]) or any(keyword in combined for keyword in ["增配", "回落", "加仓", "流向", "回升", "承压", "下降"]):
+        labels = extract_signal_labels(block, limit=5)
+        return "structured-list", {
+            "rows": [
+                {"label": label, "direction": infer_direction(label)}
+                for label in labels
+            ]
         }
 
     if content_type == "generic-explainer":
