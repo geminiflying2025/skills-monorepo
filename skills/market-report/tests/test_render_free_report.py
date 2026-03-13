@@ -68,8 +68,8 @@ class RenderFreeReportTests(unittest.TestCase):
         self.assertIn("FREE_REPORT_BRIEF.cards", app_source)
         self.assertIn("SvgVisual", app_source)
         self.assertIn("topic-card", constants)
-        self.assertIn("SvgEditorialScoreDots", app_source)
-        self.assertIn("SvgTrendBand", app_source)
+        self.assertIn("SvgScoreGrid", app_source)
+        self.assertIn("SvgRangePosition", app_source)
         self.assertIn("SvgPositionMap", app_source)
         self.assertIn("SvgDynamicDiagram", app_source)
 

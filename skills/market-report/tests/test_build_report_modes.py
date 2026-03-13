@@ -45,6 +45,7 @@ class BuildReportModesTests(unittest.TestCase):
         self.assertIn("cards", brief)
         self.assertGreaterEqual(len(brief["cards"]), 4)
         self.assertTrue(all("visualType" in card for card in brief["cards"]))
+        self.assertTrue(all("cardComponent" in card for card in brief["cards"]))
         self.assertTrue(all(card["type"] in {"hero-summary-card", "section-header-card", "topic-card"} for card in brief["cards"]))
 
 

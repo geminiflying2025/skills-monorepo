@@ -41,6 +41,8 @@ class FreeReportParserTests(unittest.TestCase):
         self.assertEqual(result["cards"][0]["type"], "hero-summary-card")
         self.assertEqual(result["cards"][1]["type"], "section-header-card")
         self.assertEqual(result["cards"][2]["type"], "topic-card")
+        self.assertIn(result["cards"][2]["cardComponent"], {"topic-card", "theme-icon-card", "position-map-card", "phase-shift-card", "score-grid-card"})
+        self.assertIn("infoType", result["cards"][2])
         self.assertIn("visualType", result["cards"][0])
         self.assertIn("内需托底", result["sections"][0]["blocks"][0]["summary"])
         self.assertTrue(result["sections"][0]["blocks"][0]["bullets"])
@@ -62,6 +64,7 @@ class FreeReportParserTests(unittest.TestCase):
         self.assertEqual(result["contentType"], "multi-asset-comparison")
         self.assertEqual(result["layoutFamily"], "sequential-cards")
         self.assertTrue(any(card["type"] == "topic-card" for card in result["cards"]))
+        self.assertTrue(any(card.get("cardComponent") == "comparison-card" for card in result["cards"]))
         self.assertTrue(any(card.get("visualType") == "comparison-strip" for card in result["cards"]))
 
     def test_parse_detects_score_evaluation(self):
@@ -80,7 +83,8 @@ class FreeReportParserTests(unittest.TestCase):
         )
         self.assertEqual(result["contentType"], "score-evaluation")
         self.assertEqual(result["layoutFamily"], "sequential-cards")
-        self.assertTrue(any(card.get("visualType") == "score-dots" for card in result["cards"]))
+        self.assertTrue(any(card.get("cardComponent") == "score-grid-card" for card in result["cards"]))
+        self.assertTrue(any(card.get("visualType") == "score-grid" for card in result["cards"]))
         self.assertTrue(any(card.get("visualType") == "probability-strip" for card in result["cards"]))
 
     def test_parse_detects_generic_explainer_and_svg_visuals(self):
@@ -102,6 +106,7 @@ class FreeReportParserTests(unittest.TestCase):
         self.assertEqual(result["layoutFamily"], "sequential-cards")
         self.assertTrue(all("visualType" in card for card in result["cards"]))
         self.assertTrue(all("visualData" in card for card in result["cards"]))
+        self.assertTrue(all("cardComponent" in card for card in result["cards"]))
         self.assertTrue(any(card.get("visualType") == "mini-flow" for card in result["cards"]))
 
     def test_parse_uses_dynamic_svg_fallback_when_no_component_fits(self):
@@ -116,8 +121,59 @@ class FreeReportParserTests(unittest.TestCase):
         )
         self.assertTrue(any(card.get("type") == "dynamic-svg-card" for card in result["cards"]))
         dynamic_card = next(card for card in result["cards"] if card.get("type") == "dynamic-svg-card")
+        self.assertEqual(dynamic_card.get("cardComponent"), "dynamic-svg-card")
+        self.assertEqual(dynamic_card.get("infoType"), "custom-relationship")
         self.assertEqual(dynamic_card.get("visualType"), "dynamic-svg")
         self.assertIn("kind", dynamic_card.get("visualData", {}))
+
+    def test_parse_maps_editorial_cards_for_layered_market_view(self):
+        module = load_module()
+        result = module.parse_free_report_text(
+            """慧度最新投资观点
+一、宏观大类
+1. 宏观环境：内需托底，外部扰动上升
+国内政策基调仍偏积极，内需修复仍在继续推进。
+海外数据偏强叠加地缘冲突，外部扰动对资产定价影响上升。
+2. 权益市场：由估值修复转向业绩验证
+市场主线由情绪推动转向业绩兑现，高位题材承压。
+3. 债券市场：利率更可能延续区间震荡
+短期受汇率、政策表态与交易情绪影响，利率更像区间运行。
+4. 商品市场：黄金与资源品受益于避险与供给约束
+黄金避险属性重新受到关注，资源品受绿色转型和供给约束支撑。
+二、中观赛道
+1. 股票中观：成长风格仍活跃
+大盘成长和中盘成长相对占优，部分制造与周期方向获得关注。
+2. 市场中性：对冲成本较优，量化环境友好
+高波动高换手与强分化并存，市场中性兼具成本优势与策略适配性。
+3. CTA策略：中长周期策略相对占优
+动量与期限结构更强，中长周期趋势策略更占优。
+三、微观跟踪
+1. 资金行为：公募小幅加仓，消费获增配
+消费配置提升最明显，TMT 略有回落，小盘价值仓位上升更快。
+2. 市场流动性：成交高位，情绪边际趋谨慎
+成交维持高位，融券余额回升，投资者情绪边际转向谨慎。"""
+        )
+        topic_cards = [card for card in result["cards"] if card["type"] in {"topic-card", "dynamic-svg-card"}]
+        components = {card["cardComponent"] for card in topic_cards}
+        self.assertIn("score-grid-card", components)
+        self.assertIn("phase-shift-card", components)
+        self.assertIn("range-position-card", components)
+        self.assertIn("theme-icon-card", components)
+        self.assertIn("position-map-card", components)
+        self.assertIn("quadrant-signal-card", components)
+        self.assertIn("cycle-bar-card", components)
+        self.assertIn("structured-list-card", components)
+        self.assertIn("bar-line-narrative-card", components)
+
+        by_component = {card["cardComponent"]: card for card in topic_cards}
+        self.assertIn("rows", by_component["score-grid-card"]["visualData"])
+        self.assertIn("stages", by_component["phase-shift-card"]["visualData"])
+        self.assertIn("position", by_component["range-position-card"]["visualData"])
+        self.assertIn("items", by_component["theme-icon-card"]["visualData"])
+        self.assertIn("quadrants", by_component["quadrant-signal-card"]["visualData"])
+        self.assertIn("bars", by_component["cycle-bar-card"]["visualData"])
+        self.assertIn("rows", by_component["structured-list-card"]["visualData"])
+        self.assertIn("bars", by_component["bar-line-narrative-card"]["visualData"])
 
 
 if __name__ == "__main__":
