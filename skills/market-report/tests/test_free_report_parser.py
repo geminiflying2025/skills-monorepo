@@ -15,7 +15,7 @@ def load_module():
 
 
 class FreeReportParserTests(unittest.TestCase):
-    def test_parse_preserves_section_structure_and_summary(self):
+    def test_parse_builds_layered_viewpoint_card_plan(self):
         module = load_module()
         result = module.parse_free_report_text(
             """慧度最新投资观点
@@ -29,10 +29,54 @@ class FreeReportParserTests(unittest.TestCase):
 成长风格仍活跃。部分顺周期和制造板块获得关注。"""
         )
         self.assertEqual(result["title"], "慧度最新投资观点")
+        self.assertEqual(result["contentType"], "layered-viewpoint")
+        self.assertEqual(result["layoutFamily"], "layered-signal-grid")
+        self.assertEqual(result["visualPriority"], "visual-first")
         self.assertEqual(len(result["sections"]), 2)
         self.assertGreaterEqual(len(result["summary"]), 2)
+        self.assertIn("hero", result)
+        self.assertTrue(result["hero"]["headline"])
+        self.assertIn("cards", result)
+        self.assertGreaterEqual(len(result["cards"]), 4)
+        self.assertEqual(result["cards"][0]["type"], "hero-summary-card")
         self.assertIn("内需托底", result["sections"][0]["blocks"][0]["summary"])
         self.assertTrue(result["sections"][0]["blocks"][0]["bullets"])
+
+    def test_parse_detects_multi_asset_comparison(self):
+        module = load_module()
+        result = module.parse_free_report_text(
+            """大类资产观察
+国内股票
+经济修复偏慢，政策托底仍在，市场结构分化明显。
+海外股票
+高利率与地缘风险压制风险偏好，估值消化仍需时间。
+黄金
+避险需求与央行购金共振，中期逻辑依旧坚实。
+原油
+供给扰动支撑价格，但需求侧仍有反复。"""
+        )
+        self.assertEqual(result["contentType"], "multi-asset-comparison")
+        self.assertEqual(result["layoutFamily"], "comparison-boards")
+        self.assertTrue(any(card["type"] == "comparison-card" for card in result["cards"]))
+
+    def test_parse_detects_score_evaluation(self):
+        module = load_module()
+        result = module.parse_free_report_text(
+            """辩证分析评分依据
+国内股票
+基本面: 60
+宏观修复偏慢，但政策托底明确。
+估值面: 45
+局部高估明显，安全边际不足。
+情景推演:
+• 乐观情景 (25%)：政策超预期，指数突破前高。
+• 中性情景 (50%)：震荡为主，结构分化延续。
+• 悲观情景 (25%)：风险偏好回落，高估值承压。"""
+        )
+        self.assertEqual(result["contentType"], "score-evaluation")
+        self.assertEqual(result["layoutFamily"], "scorecards-with-probabilities")
+        self.assertTrue(any(card["type"] == "probability-card" for card in result["cards"]))
+        self.assertTrue(any(card["type"] == "mini-bar-card" for card in result["cards"]))
 
 
 if __name__ == "__main__":
