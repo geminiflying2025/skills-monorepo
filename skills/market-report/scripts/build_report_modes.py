@@ -3,8 +3,15 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 from typing import Any
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from free_report_parser import parse_free_report_text
 
 
 MODE_TEMPLATE = "template"
@@ -93,57 +100,14 @@ def build_free_report_brief(
     user_intent: str | None = None,
     reference_images: list[str] | None = None,
 ) -> dict[str, Any]:
-    cleaned_lines = [line.strip() for line in source_text.splitlines() if line.strip()]
-    title = cleaned_lines[0] if cleaned_lines else "自定义报告长图"
-    summary = cleaned_lines[1:4] if len(cleaned_lines) > 1 else []
-
-    sections: list[dict[str, Any]] = []
-    current_section: dict[str, Any] | None = None
-    for line in cleaned_lines[1:]:
-        if line.startswith("一、") or line.startswith("二、") or line.startswith("三、") or line.startswith("四、"):
-            current_section = {
-                "title": line,
-                "lead": "",
-                "blocks": [],
-            }
-            sections.append(current_section)
-            continue
-
-        if current_section is None:
-            continue
-
-        if (line[:2].isdigit() and "、" in line) or (len(line) > 2 and line[0].isdigit() and line[1] in {'.', '、'}):
-            current_section["blocks"].append(
-                {
-                    "type": "insight-card",
-                    "title": line,
-                    "summary": "",
-                    "bullets": [],
-                }
-            )
-            continue
-
-        if current_section["blocks"]:
-            block = current_section["blocks"][-1]
-            if not block["summary"]:
-                block["summary"] = line
-            else:
-                block["bullets"].append(line)
-        elif not current_section["lead"]:
-            current_section["lead"] = line
-
-    brief = {
-        "title": title,
-        "summary": summary,
-        "tone": "professional-report",
-        "referenceImages": normalize_reference_images(reference_images),
-        "userIntent": (user_intent or "").strip(),
-        "sections": sections,
-        "visualHints": {
-            "density": "medium-high",
-            "accent": "blue",
-            "sectionStyle": "report-card",
-        },
+    brief = parse_free_report_text(source_text, user_intent=user_intent)
+    brief["tone"] = "professional-report"
+    brief["referenceImages"] = normalize_reference_images(reference_images)
+    brief["visualHints"] = {
+        "density": "adaptive",
+        "accent": "blue",
+        "sectionStyle": "report-card",
+        "compression": "moderate",
     }
     return brief
 

@@ -76,17 +76,17 @@ APP_TEMPLATE = dedent(
                 <div className="flex items-start justify-between gap-8">
                   <div className="max-w-[920px]">
                     <div className="inline-flex items-center rounded-full border border-white/15 bg-white/8 px-4 py-2 text-[13px] font-semibold tracking-[0.28em] text-slate-200 uppercase">
-                      AI REPORT / FREE REPORT MODE
+                      研报长图 · 自由版式
                     </div>
                     <h1 className="mt-7 max-w-[980px] text-[64px] font-black leading-[1.04] tracking-[-0.04em]">
                       {FREE_REPORT_BRIEF.title}
                     </h1>
                     <p className="mt-5 max-w-[900px] text-[24px] leading-[1.6] text-slate-200/90">
-                      {FREE_REPORT_BRIEF.userIntent || '专业报告风长图 · 动态编排输出'}
+                      {FREE_REPORT_BRIEF.userIntent || '按原文结构与重点信息进行动态重排，默认不过度压缩内容。'}
                     </p>
                   </div>
                   <div className="w-[250px] shrink-0 rounded-[28px] border border-white/12 bg-white/8 px-6 py-6 backdrop-blur-sm">
-                    <div className="text-[12px] uppercase tracking-[0.22em] text-slate-300">Snapshot</div>
+                    <div className="text-[12px] tracking-[0.22em] text-slate-300">内容概览</div>
                     <div className="mt-5 grid gap-5">
                       <div>
                         <div className="text-[34px] font-black leading-none">{FREE_REPORT_BRIEF.sections.length}</div>
@@ -94,18 +94,18 @@ APP_TEMPLATE = dedent(
                       </div>
                       <div>
                         <div className="text-[34px] font-black leading-none">{totalBlocks}</div>
-                        <div className="mt-2 text-sm text-slate-300">核心卡片</div>
+                        <div className="mt-2 text-sm text-slate-300">重点观点</div>
                       </div>
                     </div>
                   </div>
                 </div>
 
                 {FREE_REPORT_BRIEF.summary?.length ? (
-                  <div className="mt-10 grid grid-cols-3 gap-5">
-                    {FREE_REPORT_BRIEF.summary.slice(0, 3).map((item, index) => (
+                  <div className="mt-10 grid grid-cols-2 gap-5">
+                    {FREE_REPORT_BRIEF.summary.slice(0, 4).map((item, index) => (
                       <div key={index} className="rounded-[24px] border border-white/10 bg-white/10 px-6 py-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
-                        <div className="text-[12px] font-semibold uppercase tracking-[0.24em] text-slate-300">KEY SIGNAL {index + 1}</div>
-                        <div className="mt-4 text-[22px] font-semibold leading-[1.65] text-white/95">{item}</div>
+                        <div className="text-[12px] font-semibold tracking-[0.24em] text-slate-300">核心判断 {index + 1}</div>
+                        <div className="mt-4 text-[22px] font-semibold leading-[1.7] text-white/95">{item}</div>
                       </div>
                     ))}
                   </div>
@@ -131,12 +131,12 @@ APP_TEMPLATE = dedent(
                         <div className="flex-1 px-10 pb-10 pt-9">
                           <div className="flex items-start justify-between gap-8">
                             <div className="max-w-[880px]">
-                              <div className="text-[12px] font-bold uppercase tracking-[0.24em] text-slate-400">SECTION {String(sectionIndex + 1).padStart(2, '0')}</div>
+                              <div className="text-[12px] font-bold tracking-[0.24em] text-slate-400">第 {sectionIndex + 1} 章节</div>
                               <h2 className="mt-3 text-[38px] font-black tracking-[-0.03em] text-slate-950">{section.title}</h2>
                               {section.lead ? <p className="mt-4 text-[20px] leading-9 text-slate-500">{section.lead}</p> : null}
                             </div>
                             <div className="rounded-[20px] border border-slate-200 bg-slate-50 px-5 py-4 text-right">
-                              <div className="text-[12px] font-semibold uppercase tracking-[0.22em] text-slate-400">Blocks</div>
+                              <div className="text-[12px] font-semibold tracking-[0.22em] text-slate-400">要点数</div>
                               <div className="mt-2 text-[34px] font-black leading-none text-slate-900">{section.blocks.length}</div>
                             </div>
                           </div>
@@ -149,7 +149,7 @@ APP_TEMPLATE = dedent(
                                   <div className="absolute inset-x-0 top-0 h-[4px]" style={{ background: highlight }} />
                                   <div className="flex items-start justify-between gap-4">
                                     <div className="max-w-[80%]">
-                                      <div className="text-[12px] font-bold uppercase tracking-[0.22em] text-slate-400">Insight {blockIndex + 1}</div>
+                                      <div className="text-[12px] font-bold tracking-[0.22em] text-slate-400">重点 {blockIndex + 1}</div>
                                       <h3 className="mt-3 text-[28px] font-black leading-[1.3] tracking-[-0.02em] text-slate-950">{block.title}</h3>
                                     </div>
                                     <div className="mt-1 h-3 w-3 shrink-0 rounded-full" style={{ background: highlight }} />
