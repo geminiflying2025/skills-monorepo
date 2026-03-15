@@ -33,3 +33,12 @@
   managed_in_repo: true
   repo_path: "skills/wisdom-news-brief"
   keep: true
+
+- name: "xiaohongshu-reader-publisher"
+  type: "custom"
+  status: "managed"
+  summary: "通过 Agent Reach + mcporter + xiaohongshu-mcp 统一处理小红书读取、搜索、详情、评论与图文/视频发布。"
+  location: "/Users/macmini/.openclaw/skills/xiaohongshu-reader-publisher"
+  managed_in_repo: true
+  repo_path: "skills/xiaohongshu-reader-publisher"
+  keep: true
