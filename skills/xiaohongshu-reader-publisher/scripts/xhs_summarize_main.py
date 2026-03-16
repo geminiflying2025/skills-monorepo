@@ -209,6 +209,55 @@ def pick_key_lines(lines: list[str], limit: int = 6) -> list[str]:
     return [line for line, _ in freq.most_common(limit)]
 
 
+def summarize_sentences_from_merged_text(merged_text: str, limit: int = 6) -> list[str]:
+    text = re.sub(r"#([^\s#]+)", "", merged_text or "")
+    text = re.sub(r"\[(标题|正文|配图\d+ OCR)\]", "", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    if not text:
+        return []
+
+    raw_parts = re.split(r"[。！？!?；;]\s*", text)
+    candidates: list[str] = []
+    for part in raw_parts:
+        s = part.strip(" ，,")
+        if len(s) < 12:
+            continue
+        if re.fullmatch(r"[A-Za-z0-9_\-./ ]+", s):
+            continue
+        candidates.append(s)
+
+    if not candidates:
+        return []
+
+    seen: set[str] = set()
+    scored: list[tuple[float, str]] = []
+    for s in candidates:
+        key = re.sub(r"[^0-9A-Za-z\u4e00-\u9fff]", "", s)
+        if not key or key in seen:
+            continue
+        seen.add(key)
+
+        score = 0.0
+        score += min(len(s), 60) / 20.0
+        if re.search(r"(为什么|因为|所以|本质|核心|建议|应该|不是|而是|可以|通过|实现)", s):
+            score += 2.2
+        if re.search(r"(CLI|IDE|Codex|ClaudeCode|VibeCoding|AI)", s, flags=re.IGNORECASE):
+            score += 1.8
+        if re.search(r"(步骤|框架|结论|方式|流程|方法)", s):
+            score += 1.0
+        if len(s) > 95:
+            score -= 1.2
+        scored.append((score, s))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+    picked = []
+    for _, s in scored:
+        if len(picked) >= limit:
+            break
+        picked.append(s[:88] + "..." if len(s) > 88 else s)
+    return picked
+
+
 def build_ordered_merged_content(note: dict[str, Any], ocr_results: list[dict[str, Any]]) -> dict[str, Any]:
     title = str(note.get("title") or "").strip()
     desc = clean_desc(str(note.get("desc") or ""))
@@ -252,7 +301,6 @@ def summarize_note(note: dict[str, Any], ocr_results: list[dict[str, Any]], merg
     hashtags = extract_hashtags(desc)
     interact = note.get("interactInfo") or {}
     merged_text = str(merged_content.get("merged_text") or "")
-    merged_lines = [line.strip() for line in merged_text.splitlines() if line.strip() and not line.startswith("[")]
 
     liked = safe_int(interact.get("likedCount"))
     collected = safe_int(interact.get("collectedCount"))
@@ -271,7 +319,10 @@ def summarize_note(note: dict[str, Any], ocr_results: list[dict[str, Any]], merg
         )
         all_lines.extend(item["top_lines"])
 
-    key_lines = pick_key_lines(merged_lines, limit=8)
+    key_lines = summarize_sentences_from_merged_text(merged_text, limit=8)
+    if not key_lines:
+        merged_lines = [line.strip() for line in merged_text.splitlines() if line.strip() and not line.startswith("[")]
+        key_lines = pick_key_lines(merged_lines, limit=8)
     visual_density = "high" if sum(i["text_chars"] for i in ocr_results) >= 600 else "medium"
     if sum(i["text_chars"] for i in ocr_results) < 200:
         visual_density = "low"
