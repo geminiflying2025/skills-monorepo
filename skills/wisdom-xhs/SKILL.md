@@ -151,16 +151,25 @@ python3 <skill-dir>/scripts/xhs_summarize_main.py \
   --no-ocr
 ```
 
-### Video: audio-only extraction and merged corpus
+### Auto classify from URL, then dispatch to the right summarizer
 
-Extract audio, transcribe full audio text, and output merged corpus
-(`title + desc + transcript`) without time slicing:
+For a full XiaoHongShu URL, first read note detail and classify the note type.
+
+- If it is a video note: extract audio, transcribe full audio text, and output
+  merged corpus (`title + desc + transcript`) without time slicing.
+- If it is a non-video note: automatically fall back to main-content summary +
+  image OCR.
 
 ```bash
 python3 <skill-dir>/scripts/xhs_summarize_video.py \
   --xhs-url "https://www.xiaohongshu.com/..." \
   --output-dir /abs/path/to/output/xiaohongshu
 ```
+
+This is the preferred entrypoint when the user gives you a shared XiaoHongShu
+link and you do not yet know whether it is 图文 or 视频.
+
+### Video only: local file or direct media URL
 
 If you already have a local video file:
 

@@ -7,6 +7,7 @@ import json
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
@@ -102,6 +103,18 @@ def run_mcp_get_feed_detail(feed_id: str, xsec_token: str) -> dict[str, Any] | N
     return payload
 
 
+def resolve_note_detail(feed_id: str, xsec_token: str) -> tuple[dict[str, Any], str]:
+    payload = run_mcp_get_feed_detail(feed_id, xsec_token)
+    source = "mcp"
+    if payload is None:
+        payload = load_note_from_web(feed_id, xsec_token)
+        source = "web_fallback"
+    note = ((payload.get("data") or {}).get("note") or {})
+    if not note:
+        raise RuntimeError("note data not found")
+    return note, source
+
+
 def load_note_from_web(feed_id: str, xsec_token: str) -> dict[str, Any]:
     url = f"https://www.xiaohongshu.com/explore/{feed_id}?xsec_token={xsec_token}&xsec_source=pc_search"
     headers = {
@@ -161,7 +174,7 @@ def walk_strings(node: Any) -> list[str]:
     return values
 
 
-def pick_video_url_from_note(note: dict[str, Any]) -> str:
+def pick_video_url_from_note(note: dict[str, Any]) -> str | None:
     candidates = []
     for s in walk_strings(note.get("video") or note):
         if not s.startswith("http"):
@@ -178,9 +191,29 @@ def pick_video_url_from_note(note: dict[str, Any]) -> str:
                 score -= 2
             candidates.append((score, s))
     if not candidates:
-        raise RuntimeError("no video url found in note payload")
+        return None
     candidates.sort(key=lambda x: x[0], reverse=True)
     return candidates[0][1]
+
+
+def dispatch_non_video_summary(feed_id: str, xsec_token: str, output_dir: Path) -> int:
+    script_path = Path(__file__).with_name("xhs_summarize_main.py")
+    command = [
+        sys.executable,
+        str(script_path),
+        "--feed-id",
+        feed_id,
+        "--xsec-token",
+        xsec_token,
+        "--output-dir",
+        str(output_dir),
+    ]
+    result = subprocess.run(command, capture_output=True, text=True, check=False)
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.strip() or result.stdout.strip() or "non-video dispatcher failed")
+    if result.stdout.strip():
+        sys.stdout.write(result.stdout.strip() + "\n")
+    return 0
 
 
 def download_file(url: str, path: Path) -> Path:
@@ -329,15 +362,10 @@ def main() -> int:
         if not video_url:
             if not feed_id or not xsec_token:
                 raise RuntimeError("provide --video-file or --video-url or a valid --xhs-url/--feed-id+--xsec-token")
-            payload = run_mcp_get_feed_detail(feed_id, xsec_token)
-            source = "mcp"
-            if payload is None:
-                payload = load_note_from_web(feed_id, xsec_token)
-                source = "web_fallback"
-            note = ((payload.get("data") or {}).get("note") or {})
-            if not note:
-                raise RuntimeError("note data not found")
+            note, source = resolve_note_detail(feed_id, xsec_token)
             video_url = pick_video_url_from_note(note)
+            if not video_url:
+                return dispatch_non_video_summary(feed_id, xsec_token, output_dir)
 
         if not video_url:
             raise RuntimeError("no video url resolved")
