@@ -249,6 +249,49 @@ def clean_desc(desc: str) -> str:
     return without_extra_blanks.strip()
 
 
+def punctuate_zh_text(text: str) -> str:
+    text = re.sub(r"\s+", "", text or "").strip()
+    if not text:
+        return ""
+    if re.search(r"[。！？；，,.!?;]", text):
+        return text
+
+    clauses = re.split(r"(但是|所以|因为|然后|不过|而且|并且|如果|就是|其实|另外|最后|同时|然后呢|总之)", text)
+    merged_parts: list[str] = []
+    i = 0
+    while i < len(clauses):
+        cur = clauses[i]
+        if i + 1 < len(clauses) and clauses[i + 1] in {"但是", "所以", "因为", "然后", "不过", "而且", "并且", "如果", "就是", "其实", "另外", "最后", "同时", "然后呢", "总之"}:
+            merged_parts.append(cur)
+            merged_parts.append("，")
+            i += 1
+        else:
+            merged_parts.append(cur)
+        i += 1
+
+    rough = "".join(merged_parts)
+    # fallback length-based punctuation
+    out: list[str] = []
+    sent_len = 0
+    for ch in rough:
+        out.append(ch)
+        sent_len += 1
+        if sent_len >= 30 and ch not in "，。！？；":
+            out.append("，")
+            sent_len = 0
+        if sent_len >= 58 and ch not in "，。！？；":
+            out.append("。")
+            sent_len = 0
+    punctuated = "".join(out)
+    punctuated = re.sub(r"[，]{2,}", "，", punctuated)
+    punctuated = re.sub(r"[。]{2,}", "。", punctuated)
+    punctuated = re.sub(r"([。！？])，", r"\1", punctuated)
+    punctuated = punctuated.strip("，")
+    if punctuated and punctuated[-1] not in "。！？":
+        punctuated += "。"
+    return punctuated
+
+
 def build_merged_text(*, title: str, desc: str, transcript_text: str) -> str:
     parts = []
     if title.strip():
@@ -316,7 +359,8 @@ def main() -> int:
         language=args.language,
     )
     transcript_obj = json.loads(transcript_json_path.read_text(encoding="utf-8"))
-    transcript_text = str(transcript_obj.get("text") or "").strip()
+    transcript_text_raw = str(transcript_obj.get("text") or "").strip()
+    transcript_text = punctuate_zh_text(transcript_text_raw)
 
     title = str(note.get("title") or "").strip()
     desc = clean_desc(str(note.get("desc") or ""))
@@ -334,6 +378,8 @@ def main() -> int:
         "video_file": str(video_path),
         "audio_file": str(audio_path),
         "transcript_file": str(transcript_json_path),
+        "transcript_raw_text": transcript_text_raw,
+        "transcript_punctuated_text": transcript_text,
         "note": {
             "noteId": note.get("noteId"),
             "title": title,
@@ -364,6 +410,9 @@ def main() -> int:
             "",
             "## 合并语料",
             merged_text if merged_text else "（空）",
+            "",
+            "## 音轨转写（带标点）",
+            transcript_text if transcript_text else "（空）",
             "",
         ]
     )
