@@ -209,11 +209,50 @@ def pick_key_lines(lines: list[str], limit: int = 6) -> list[str]:
     return [line for line, _ in freq.most_common(limit)]
 
 
-def summarize_note(note: dict[str, Any], ocr_results: list[dict[str, Any]]) -> dict[str, Any]:
+def build_ordered_merged_content(note: dict[str, Any], ocr_results: list[dict[str, Any]]) -> dict[str, Any]:
+    title = str(note.get("title") or "").strip()
+    desc = clean_desc(str(note.get("desc") or ""))
+    blocks: list[dict[str, Any]] = []
+    merged_parts: list[str] = []
+
+    if title:
+        blocks.append({"type": "title", "order": 0, "text": title})
+        merged_parts.append(f"[标题]\n{title}")
+    if desc:
+        blocks.append({"type": "main_desc", "order": 1, "text": desc})
+        merged_parts.append(f"[正文]\n{desc}")
+
+    for item in sorted(ocr_results, key=lambda x: int(x.get("index", 0))):
+        ocr_lines = [
+            str(x.get("text") or "").strip()
+            for x in (item.get("ocr_lines") or [])
+            if str(x.get("text") or "").strip() and not str(x.get("text") or "").startswith("[OCR failed]")
+        ]
+        image_text = "\n".join(ocr_lines)
+        if not image_text:
+            continue
+        blocks.append(
+            {
+                "type": "image_ocr",
+                "order": int(item.get("index", 0)) + 1,
+                "image_index": item.get("index"),
+                "style": item.get("style"),
+                "text": image_text,
+            }
+        )
+        merged_parts.append(f"[配图{item.get('index')} OCR]\n{image_text}")
+
+    merged_text = "\n\n".join(merged_parts).strip()
+    return {"blocks": blocks, "merged_text": merged_text}
+
+
+def summarize_note(note: dict[str, Any], ocr_results: list[dict[str, Any]], merged_content: dict[str, Any]) -> dict[str, Any]:
     title = str(note.get("title") or "").strip()
     desc = clean_desc(str(note.get("desc") or ""))
     hashtags = extract_hashtags(desc)
     interact = note.get("interactInfo") or {}
+    merged_text = str(merged_content.get("merged_text") or "")
+    merged_lines = [line.strip() for line in merged_text.splitlines() if line.strip() and not line.startswith("[")]
 
     liked = safe_int(interact.get("likedCount"))
     collected = safe_int(interact.get("collectedCount"))
@@ -232,7 +271,7 @@ def summarize_note(note: dict[str, Any], ocr_results: list[dict[str, Any]]) -> d
         )
         all_lines.extend(item["top_lines"])
 
-    key_lines = pick_key_lines(all_lines, limit=6)
+    key_lines = pick_key_lines(merged_lines, limit=8)
     visual_density = "high" if sum(i["text_chars"] for i in ocr_results) >= 600 else "medium"
     if sum(i["text_chars"] for i in ocr_results) < 200:
         visual_density = "low"
@@ -254,6 +293,7 @@ def summarize_note(note: dict[str, Any], ocr_results: list[dict[str, Any]]) -> d
             "commented": commented,
         },
         "key_points": key_lines,
+        "ordered_merged_chars": len(merged_text),
         "visual_observations": image_observations,
         "summary_paragraph": paragraph,
     }
@@ -358,7 +398,8 @@ def main() -> int:
                 }
             )
 
-    summary = summarize_note(note, ocr_results)
+    merged_content = build_ordered_merged_content(note, ocr_results)
+    summary = summarize_note(note, ocr_results, merged_content)
 
     output_dir = Path(args.output_dir).expanduser().resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -383,6 +424,7 @@ def main() -> int:
         "ocr_enabled": ocr_enabled,
         "ocr_engine": "rapidocr_onnxruntime" if ocr_enabled else None,
         "ocr_results": ocr_results,
+        "ordered_merged_content": merged_content,
         "summary": summary,
     }
 
