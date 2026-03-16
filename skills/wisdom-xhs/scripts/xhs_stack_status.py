@@ -5,22 +5,12 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
-from pathlib import Path
 from typing import Any
 
-
-def find_mcporter_config() -> str | None:
-    candidates = [
-        Path.home() / "config" / "mcporter.json",
-        Path.home() / ".mcporter" / "mcporter.json",
-    ]
-    for candidate in candidates:
-        if candidate.exists():
-            return str(candidate)
-    return None
+from mcporter_utils import build_mcporter_command, build_mcporter_env, find_mcporter_config, resolve_mcporter_bin
 
 
-def run_command(args: list[str], timeout: int = 10) -> dict[str, Any]:
+def run_command(args: list[str], timeout: int = 10, env: dict[str, str] | None = None) -> dict[str, Any]:
     try:
         result = subprocess.run(
             args,
@@ -28,6 +18,7 @@ def run_command(args: list[str], timeout: int = 10) -> dict[str, Any]:
             text=True,
             timeout=timeout,
             check=False,
+            env=env,
         )
         return {
             "ok": result.returncode == 0,
@@ -46,14 +37,12 @@ def run_command(args: list[str], timeout: int = 10) -> dict[str, Any]:
 
 def main() -> None:
     docker = shutil.which("docker")
-    mcporter = shutil.which("mcporter")
+    mcporter = resolve_mcporter_bin()
     agent_reach = shutil.which("agent-reach")
     mcporter_config = find_mcporter_config()
 
     def with_mcporter_config(base_args: list[str]) -> list[str]:
-        if mcporter_config:
-            return ["mcporter", "--config", mcporter_config, *base_args]
-        return ["mcporter", *base_args]
+        return build_mcporter_command(*base_args)
 
     docker_ps = run_command(
         ["docker", "ps", "--format", "{{.Names}}\t{{.Status}}"],
@@ -70,16 +59,19 @@ def main() -> None:
     config_get = run_command(
         with_mcporter_config(["config", "get", "xiaohongshu", "--json"]),
         timeout=10,
+        env=build_mcporter_env(),
     ) if mcporter else {"ok": False, "stdout": "", "stderr": "mcporter not found"}
 
     mcp_list = run_command(
         with_mcporter_config(["list", "xiaohongshu", "--json"]),
         timeout=20,
+        env=build_mcporter_env(),
     ) if mcporter else {"ok": False, "stdout": "", "stderr": "mcporter not found"}
 
     login_status = run_command(
         with_mcporter_config(["call", "xiaohongshu.check_login_status"]),
         timeout=20,
+        env=build_mcporter_env(),
     ) if mcporter else {"ok": False, "stdout": "", "stderr": "mcporter not found"}
 
     payload = {

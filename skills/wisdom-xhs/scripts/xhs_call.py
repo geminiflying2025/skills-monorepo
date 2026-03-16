@@ -7,16 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-
-def find_mcporter_config() -> str | None:
-    candidates = [
-        Path.home() / "config" / "mcporter.json",
-        Path.home() / ".mcporter" / "mcporter.json",
-    ]
-    for candidate in candidates:
-        if candidate.exists():
-            return str(candidate)
-    return None
+from mcporter_utils import build_mcporter_command, build_mcporter_env
 
 
 def parse_args() -> argparse.Namespace:
@@ -37,12 +28,8 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    mcporter_config = find_mcporter_config()
-    command = ["mcporter"]
-    if mcporter_config:
-        command.extend(["--config", mcporter_config])
-    command.extend(["call", f"xiaohongshu.{args.tool}", *args.arg])
-    result = subprocess.run(command, capture_output=True, text=True, check=False)
+    command = build_mcporter_command("call", f"xiaohongshu.{args.tool}", *args.arg)
+    result = subprocess.run(command, capture_output=True, text=True, check=False, env=build_mcporter_env())
 
     stdout = result.stdout or ""
     stderr = result.stderr or ""

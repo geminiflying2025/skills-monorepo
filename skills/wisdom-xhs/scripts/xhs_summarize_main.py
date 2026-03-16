@@ -13,22 +13,12 @@ from typing import Any
 import numpy as np
 import requests
 from PIL import Image
+from mcporter_utils import build_mcporter_command, build_mcporter_env
 
 try:
     from rapidocr_onnxruntime import RapidOCR
 except Exception:  # pragma: no cover - optional dependency
     RapidOCR = None  # type: ignore[assignment]
-
-
-def find_mcporter_config() -> str | None:
-    candidates = [
-        Path.home() / "config" / "mcporter.json",
-        Path.home() / ".mcporter" / "mcporter.json",
-    ]
-    for candidate in candidates:
-        if candidate.exists():
-            return str(candidate)
-    return None
 
 
 def parse_args() -> argparse.Namespace:
@@ -51,19 +41,13 @@ def parse_args() -> argparse.Namespace:
 
 
 def run_mcp_get_feed_detail(feed_id: str, xsec_token: str) -> dict[str, Any] | None:
-    mcporter_config = find_mcporter_config()
-    command = ["mcporter"]
-    if mcporter_config:
-        command.extend(["--config", mcporter_config])
-    command.extend(
-        [
-            "call",
-            "xiaohongshu.get_feed_detail",
-            f"feed_id={feed_id}",
-            f"xsec_token={xsec_token}",
-        ]
+    command = build_mcporter_command(
+        "call",
+        "xiaohongshu.get_feed_detail",
+        f"feed_id={feed_id}",
+        f"xsec_token={xsec_token}",
     )
-    result = subprocess.run(command, capture_output=True, text=True, check=False)
+    result = subprocess.run(command, capture_output=True, text=True, check=False, env=build_mcporter_env())
     if result.returncode != 0:
         return None
     try:
@@ -349,7 +333,19 @@ def main() -> int:
     json_path.write_text(json.dumps(output_payload, ensure_ascii=False, indent=2), encoding="utf-8")
     md_path.write_text(render_merged_markdown(args.feed_id, note, merged_content, ocr_enabled), encoding="utf-8")
 
-    print(json.dumps({"ok": True, "json": str(json_path), "markdown": str(md_path)}, ensure_ascii=False))
+    print(
+        json.dumps(
+            {
+                "ok": True,
+                "source": source,
+                "note_type": note.get("type") or "normal",
+                "title": note.get("title") or "",
+                "json": str(json_path),
+                "markdown": str(md_path),
+            },
+            ensure_ascii=False,
+        )
+    )
     return 0
 
 

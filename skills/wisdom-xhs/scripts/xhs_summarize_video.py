@@ -13,17 +13,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 import requests
-
-
-def find_mcporter_config() -> str | None:
-    candidates = [
-        Path.home() / "config" / "mcporter.json",
-        Path.home() / ".mcporter" / "mcporter.json",
-    ]
-    for candidate in candidates:
-        if candidate.exists():
-            return str(candidate)
-    return None
+from mcporter_utils import build_mcporter_command, build_mcporter_env
 
 
 def parse_args() -> argparse.Namespace:
@@ -79,19 +69,13 @@ def parse_feed_and_token_from_url(url: str) -> tuple[str | None, str | None]:
 
 
 def run_mcp_get_feed_detail(feed_id: str, xsec_token: str) -> dict[str, Any] | None:
-    mcporter_config = find_mcporter_config()
-    command = ["mcporter"]
-    if mcporter_config:
-        command.extend(["--config", mcporter_config])
-    command.extend(
-        [
-            "call",
-            "xiaohongshu.get_feed_detail",
-            f"feed_id={feed_id}",
-            f"xsec_token={xsec_token}",
-        ]
+    command = build_mcporter_command(
+        "call",
+        "xiaohongshu.get_feed_detail",
+        f"feed_id={feed_id}",
+        f"xsec_token={xsec_token}",
     )
-    result = subprocess.run(command, capture_output=True, text=True, check=False)
+    result = subprocess.run(command, capture_output=True, text=True, check=False, env=build_mcporter_env())
     if result.returncode != 0:
         return None
     try:
@@ -450,6 +434,9 @@ def main() -> int:
         json.dumps(
             {
                 "ok": True,
+                "source": source,
+                "note_type": note.get("type") or "video",
+                "title": title,
                 "json": str(merged_json),
                 "markdown": str(merged_md),
                 "transcript": str(transcript_json_path),
