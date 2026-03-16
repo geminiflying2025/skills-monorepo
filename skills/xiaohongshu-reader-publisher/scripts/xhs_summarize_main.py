@@ -6,7 +6,6 @@ import argparse
 import json
 import re
 import subprocess
-from collections import Counter
 from io import BytesIO
 from pathlib import Path
 from typing import Any
@@ -140,17 +139,6 @@ def clean_desc(desc: str) -> str:
     return without_extra_blanks.strip()
 
 
-def extract_hashtags(text: str) -> list[str]:
-    return re.findall(r"#([^\s#]+)", text or "")
-
-
-def safe_int(value: Any) -> int:
-    try:
-        return int(str(value).replace(",", "").strip())
-    except Exception:
-        return 0
-
-
 def image_shape(image_url: str) -> tuple[int, int] | None:
     try:
         resp = requests.get(image_url, timeout=25)
@@ -197,7 +185,7 @@ def classify_visual_style(ocr_text: str, ratio: float, text_chars: int) -> str:
 
 
 def pick_key_lines(lines: list[str], limit: int = 6) -> list[str]:
-    normalized = []
+    normalized: list[str] = []
     for line in lines:
         v = re.sub(r"\s+", " ", line).strip()
         if len(v) < 6:
@@ -205,57 +193,11 @@ def pick_key_lines(lines: list[str], limit: int = 6) -> list[str]:
         if len(v) > 80:
             v = v[:80] + "..."
         normalized.append(v)
-    freq = Counter(normalized)
-    return [line for line, _ in freq.most_common(limit)]
-
-
-def summarize_sentences_from_merged_text(merged_text: str, limit: int = 6) -> list[str]:
-    text = re.sub(r"#([^\s#]+)", "", merged_text or "")
-    text = re.sub(r"\[(标题|正文|配图\d+ OCR)\]", "", text)
-    text = re.sub(r"\s+", " ", text).strip()
-    if not text:
+    if not normalized:
         return []
-
-    raw_parts = re.split(r"[。！？!?；;]\s*", text)
-    candidates: list[str] = []
-    for part in raw_parts:
-        s = part.strip(" ，,")
-        if len(s) < 12:
-            continue
-        if re.fullmatch(r"[A-Za-z0-9_\-./ ]+", s):
-            continue
-        candidates.append(s)
-
-    if not candidates:
-        return []
-
-    seen: set[str] = set()
-    scored: list[tuple[float, str]] = []
-    for s in candidates:
-        key = re.sub(r"[^0-9A-Za-z\u4e00-\u9fff]", "", s)
-        if not key or key in seen:
-            continue
-        seen.add(key)
-
-        score = 0.0
-        score += min(len(s), 60) / 20.0
-        if re.search(r"(为什么|因为|所以|本质|核心|建议|应该|不是|而是|可以|通过|实现)", s):
-            score += 2.2
-        if re.search(r"(CLI|IDE|Codex|ClaudeCode|VibeCoding|AI)", s, flags=re.IGNORECASE):
-            score += 1.8
-        if re.search(r"(步骤|框架|结论|方式|流程|方法)", s):
-            score += 1.0
-        if len(s) > 95:
-            score -= 1.2
-        scored.append((score, s))
-
-    scored.sort(key=lambda x: x[0], reverse=True)
-    picked = []
-    for _, s in scored:
-        if len(picked) >= limit:
-            break
-        picked.append(s[:88] + "..." if len(s) > 88 else s)
-    return picked
+    order_map = {text: idx for idx, text in enumerate(normalized)}
+    deduped = sorted(set(normalized), key=lambda text: order_map[text])
+    return deduped[:limit]
 
 
 def build_ordered_merged_content(note: dict[str, Any], ocr_results: list[dict[str, Any]]) -> dict[str, Any]:
@@ -295,99 +237,25 @@ def build_ordered_merged_content(note: dict[str, Any], ocr_results: list[dict[st
     return {"blocks": blocks, "merged_text": merged_text}
 
 
-def summarize_note(note: dict[str, Any], ocr_results: list[dict[str, Any]], merged_content: dict[str, Any]) -> dict[str, Any]:
-    title = str(note.get("title") or "").strip()
-    desc = clean_desc(str(note.get("desc") or ""))
-    hashtags = extract_hashtags(desc)
-    interact = note.get("interactInfo") or {}
-    merged_text = str(merged_content.get("merged_text") or "")
-
-    liked = safe_int(interact.get("likedCount"))
-    collected = safe_int(interact.get("collectedCount"))
-    commented = safe_int(interact.get("commentCount"))
-
-    all_lines = []
-    image_observations = []
-    for item in ocr_results:
-        image_observations.append(
-            {
-                "index": item["index"],
-                "style": item["style"],
-                "text_chars": item["text_chars"],
-                "top_lines": item["top_lines"][:3],
-            }
-        )
-        all_lines.extend(item["top_lines"])
-
-    key_lines = summarize_sentences_from_merged_text(merged_text, limit=8)
-    if not key_lines:
-        merged_lines = [line.strip() for line in merged_text.splitlines() if line.strip() and not line.startswith("[")]
-        key_lines = pick_key_lines(merged_lines, limit=8)
-    visual_density = "high" if sum(i["text_chars"] for i in ocr_results) >= 600 else "medium"
-    if sum(i["text_chars"] for i in ocr_results) < 200:
-        visual_density = "low"
-
-    paragraph = (
-        f"这篇笔记主题是“{title or '未命名主题'}”。"
-        f"主文案偏{('话题标签驱动' if len(desc) < 120 else '观点阐述驱动')}，"
-        f"互动表现为点赞{liked}、收藏{collected}、评论{commented}。"
-        f"配图整体呈{visual_density}文本密度，主要是"
-        f"{'结构化信息图' if any('infographic' in i['style'] for i in ocr_results) else '图文混合表达'}。"
-    )
-
-    return {
-        "main_topic": title,
-        "hashtags": hashtags[:10],
-        "engagement": {
-            "liked": liked,
-            "collected": collected,
-            "commented": commented,
-        },
-        "key_points": key_lines,
-        "ordered_merged_chars": len(merged_text),
-        "visual_observations": image_observations,
-        "summary_paragraph": paragraph,
-        "summary_method": "fallback_rules",
-    }
-
-
-def render_markdown(feed_id: str, note: dict[str, Any], summary: dict[str, Any], ocr_enabled: bool) -> str:
+def render_merged_markdown(feed_id: str, note: dict[str, Any], merged_content: dict[str, Any], ocr_enabled: bool) -> str:
     user = note.get("user") or {}
-    hashtags = summary.get("hashtags") or []
-    key_points = summary.get("key_points") or []
+    merged_text = str(merged_content.get("merged_text") or "").strip()
+    merged_chars = len(merged_text)
+    block_count = len(merged_content.get("blocks") or [])
     lines = [
-        f"# 小红书主内容总结（{feed_id}）",
+        f"# 小红书合并语料（{feed_id}）",
         "",
-        "## 主信息",
+        "## 元信息",
         f"- 标题：{note.get('title') or ''}",
         f"- 作者：{user.get('nickname') or ''} ({user.get('userId') or ''})",
         f"- 发布时间戳：{note.get('time')}",
         f"- 图片数：{len(note.get('imageList') or [])}",
+        f"- 合并块数：{block_count}",
+        f"- 合并字符数：{merged_chars}",
         "",
-        "## 内容摘要",
-        summary.get("summary_paragraph") or "",
-        "",
-        "## 话题标签",
-        ", ".join(f"#{t}" for t in hashtags) if hashtags else "（无）",
-        "",
-        "## 关键信息点",
+        "## 合并语料",
     ]
-    if key_points:
-        for point in key_points:
-            lines.append(f"- {point}")
-    else:
-        lines.append("- （未提取到稳定 OCR 文本）")
-    lines.extend(
-        [
-            "",
-            "## 视觉观察",
-        ]
-    )
-    for item in summary.get("visual_observations") or []:
-        lines.append(
-            f"- 图{item.get('index')}: {item.get('style')}，文本字符约 {item.get('text_chars')}，关键词: "
-            + " / ".join(item.get("top_lines") or ["（无）"])
-        )
+    lines.append(merged_text if merged_text else "（空）")
     if not ocr_enabled:
         lines.extend(["", "> OCR 已禁用（--no-ocr）"])
     return "\n".join(lines).strip() + "\n"
@@ -451,12 +319,11 @@ def main() -> int:
             )
 
     merged_content = build_ordered_merged_content(note, ocr_results)
-    summary = summarize_note(note, ocr_results, merged_content)
 
     output_dir = Path(args.output_dir).expanduser().resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
-    json_path = output_dir / f"feed-{args.feed_id}-summary.json"
-    md_path = output_dir / f"feed-{args.feed_id}-summary.md"
+    json_path = output_dir / f"feed-{args.feed_id}-merged.json"
+    md_path = output_dir / f"feed-{args.feed_id}-merged.md"
 
     output_payload = {
         "feed_id": args.feed_id,
@@ -477,11 +344,10 @@ def main() -> int:
         "ocr_engine": "rapidocr_onnxruntime" if ocr_enabled else None,
         "ocr_results": ocr_results,
         "ordered_merged_content": merged_content,
-        "summary": summary,
     }
 
     json_path.write_text(json.dumps(output_payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    md_path.write_text(render_markdown(args.feed_id, note, summary, ocr_enabled), encoding="utf-8")
+    md_path.write_text(render_merged_markdown(args.feed_id, note, merged_content, ocr_enabled), encoding="utf-8")
 
     print(json.dumps({"ok": True, "json": str(json_path), "markdown": str(md_path)}, ensure_ascii=False))
     return 0
