@@ -347,6 +347,7 @@ def summarize_note(note: dict[str, Any], ocr_results: list[dict[str, Any]], merg
         "ordered_merged_chars": len(merged_text),
         "visual_observations": image_observations,
         "summary_paragraph": paragraph,
+        "summary_method": "fallback_rules",
     }
 
 
