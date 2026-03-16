@@ -1,5 +1,5 @@
 ---
-name: xiaohongshu-reader-publisher
+name: wisdom-xhs
 description: Read and publish XiaoHongShu content through Agent Reach + mcporter + xiaohongshu-mcp. Use when tasks involve 小红书笔记读取、搜索、详情、评论、图文发布、视频发布、账号状态检查.
 ---
 
