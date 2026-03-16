@@ -151,6 +151,25 @@ python3 <skill-dir>/scripts/xhs_summarize_main.py \
   --no-ocr
 ```
 
+### Video: audio-only extraction and merged corpus
+
+Extract audio, transcribe full audio text, and output merged corpus
+(`title + desc + transcript`) without time slicing:
+
+```bash
+python3 <skill-dir>/scripts/xhs_summarize_video.py \
+  --xhs-url "https://www.xiaohongshu.com/..." \
+  --output-dir /abs/path/to/output/xiaohongshu
+```
+
+If you already have a local video file:
+
+```bash
+python3 <skill-dir>/scripts/xhs_summarize_video.py \
+  --video-file /abs/path/to/video.mp4 \
+  --output-dir /abs/path/to/output/xiaohongshu
+```
+
 Load more comments when useful:
 
 ```bash
