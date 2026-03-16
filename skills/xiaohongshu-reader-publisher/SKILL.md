@@ -130,6 +130,27 @@ mcporter call xiaohongshu.get_feed_detail \
   xsec_token=<xsec-token>
 ```
 
+### Main content summary (no comments) + image OCR
+
+Generate summary artifacts (JSON + Markdown) from note main content and image
+OCR:
+
+```bash
+python3 <skill-dir>/scripts/xhs_summarize_main.py \
+  --feed-id <feed-id> \
+  --xsec-token <xsec-token> \
+  --output-dir /abs/path/to/output/xiaohongshu
+```
+
+If you only want text metadata without OCR:
+
+```bash
+python3 <skill-dir>/scripts/xhs_summarize_main.py \
+  --feed-id <feed-id> \
+  --xsec-token <xsec-token> \
+  --no-ocr
+```
+
 Load more comments when useful:
 
 ```bash
