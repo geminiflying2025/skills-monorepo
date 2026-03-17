@@ -20,7 +20,7 @@ The skill now has three product paths:
 1. Detect the input form.
 2. Extract text only when the source is a file.
 3. Determine rendering mode: `template`, `free-report`, or `reference-guided free-report`.
-4. For `template`, use the current AI to convert the text into canonical `ReportData` JSON with the original project prompt.
+4. For `template`, use the AI in the current conversation to convert the text into canonical `ReportData` JSON with the original project prompt.
 5. For `free-report`, use AI to produce a bounded report-layout brief rather than forcing the old schema.
 6. For `reference-guided free-report`, first analyze the reference image(s) into a style brief, then merge that with the content brief.
 7. Render HTML with the appropriate renderer.
@@ -32,7 +32,7 @@ If the user only provides already-extracted text, start at step 3.
 
 - Plain text is first-class input. DingTalk or chat-pasted content does not need an intermediate file.
 - `json`: If it already matches the canonical schema, render directly.
-- `txt` / `md`: Read as text, then hand the text to the current AI for structuring.
+- `txt` / `md`: Read as text, then hand the text to the AI in the current conversation for structuring.
 - `docx`: Extract text first. Use [$docx](/Users/macmini/.codex/skills/docx/SKILL.md) only when raw file extraction is needed.
 - `pdf`: Extract text first. Use [$pdf](/Users/macmini/.codex/skills/pdf/SKILL.md) only when raw file extraction is needed.
 
@@ -59,7 +59,9 @@ Prefer not to make file extraction the center of the workflow. In chat contexts,
 
 ### Template path
 
-- The current AI should produce JSON that matches [schema.md](./references/schema.md).
+- The AI in the current conversation should produce JSON that matches [schema.md](./references/schema.md).
+- Do not call Gemini, OpenAI, Claude API, or any other third-party model API as part of the normal `template` workflow.
+- This skill assumes the structuring step is performed directly by the assistant currently helping the user.
 - Use the original project prompt in [ai-parse-prompt.md](./references/ai-parse-prompt.md) when structuring text.
 - Preserve explicit source scores exactly when they are present.
 - Keep scenario labels fixed as `乐观情境` / `中性情境` / `悲观情境`.
@@ -94,13 +96,19 @@ Resolve `<skill-dir>` to the directory containing this `SKILL.md`.
 
 - Extract text from a source file:
   `python3 <skill-dir>/scripts/extract_report_text.py --input-file /path/to/report.docx --output /tmp/report.txt`
-- Use the current AI with [ai-parse-prompt.md](./references/ai-parse-prompt.md) to turn the extracted text into canonical JSON.
+- Use the AI in the current conversation with [ai-parse-prompt.md](./references/ai-parse-prompt.md) to turn the extracted text into canonical JSON.
 - Render from canonical JSON text:
   `python3 <skill-dir>/scripts/run_market_report.py --input-text '{"sections":[...]}' --output-dir /desired/output`
 - Render from canonical JSON file:
   `python3 <skill-dir>/scripts/run_market_report.py --input-file /path/to/report.json --output-dir /desired/output`
 
 The render command expects canonical `ReportData` JSON, builds a temp render workspace, exports a PNG, and prints the final image path as JSON.
+
+## Dependency Boundary
+
+- Normal execution of the `template` path must not depend on an extra parsing backend or external model service.
+- Extraction, validation, normalization, HTML rendering, and PNG export are local steps owned by the skill.
+- The only AI step in the standard `template` workflow is the assistant in the current conversation producing canonical `ReportData` JSON from the user's content.
 
 ## Template Immutability
 
