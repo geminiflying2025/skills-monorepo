@@ -274,9 +274,22 @@ def parse_args() -> argparse.Namespace:
 
 def require_xreach() -> str:
     xreach_bin = shutil.which("xreach")
-    if not xreach_bin:
-        raise RuntimeError("xreach not found. Install Agent Reach / xreach first.")
-    return xreach_bin
+    if xreach_bin:
+        return xreach_bin
+
+    home = str(Path.home())
+    candidates = [
+        f"{home}/.npm-global/bin/xreach",
+        f"{home}/.local/bin/xreach",
+        f"{home}/.local/node-v22.22.1-darwin-arm64/bin/xreach",
+        "/opt/homebrew/bin/xreach",
+        "/usr/local/bin/xreach",
+    ]
+    for candidate in candidates:
+        if Path(candidate).exists():
+            return candidate
+
+    raise RuntimeError("xreach not found. Install Agent Reach / xreach first.")
 
 
 def check_xreach_auth(xreach_bin: str) -> tuple[bool, str]:
