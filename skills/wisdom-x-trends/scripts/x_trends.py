@@ -161,8 +161,13 @@ EVENT_TERMS = {
 
 
 CHINA_POLITICS_BLOCK_TERMS = {
+    "chinese president",
+    "president xi",
+    "china president",
     "xi jinping",
     "习近平",
+    "国家主席",
+    "中共领导人",
     "li keqiang",
     "李克强",
     "zhao leji",
@@ -227,6 +232,10 @@ class TweetRecord:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Fetch and aggregate X/Twitter hotspots by topic.")
+    parser.add_argument(
+        "--from-raw",
+        help="Replay from an existing x-trends-raw.json file instead of calling X.",
+    )
     parser.add_argument(
         "--topics",
         help="Comma-separated topic keys. Defaults to finance,tech,ai,economy,regional-conflicts",
@@ -312,6 +321,30 @@ def build_query_plan(args: argparse.Namespace) -> dict[str, list[str]]:
         plan["custom"] = args.query
 
     return plan
+
+
+def load_records_from_raw(raw_path: Path) -> tuple[dict[str, Any], list[TweetRecord], list[dict[str, str]]]:
+    payload = json.loads(raw_path.read_text(encoding="utf-8"))
+    records: list[TweetRecord] = []
+    failures: list[dict[str, str]] = []
+
+    for topic_block in payload.get("topics", []):
+        topic = topic_block.get("topic", "custom")
+        for query_block in topic_block.get("queries", []):
+            query = query_block.get("query", "")
+            for search in query_block.get("searches", []):
+                if search.get("error"):
+                    failures.append({"topic": topic, "query": query, "error": search["error"]})
+                    continue
+                search_payload = search.get("payload")
+                if search_payload is None:
+                    continue
+                for node in possible_tweet_nodes(search_payload):
+                    record = parse_record(topic, query, node)
+                    if record is not None:
+                        records.append(record)
+
+    return payload, records, failures
 
 
 def extract_json(text: str) -> Any:
@@ -894,45 +927,50 @@ def main() -> int:
     args = parse_args()
     output_dir = Path(args.output_dir).expanduser().resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
-
-    xreach_bin = require_xreach()
-    auth_ok, auth_message = check_xreach_auth(xreach_bin)
-    if not auth_ok:
-        raise RuntimeError(auth_guidance(auth_message))
-
-    query_plan = build_query_plan(args)
-    search_types = ["top", "latest"] if args.search_type == "both" else [args.search_type]
-
-    raw_payload: dict[str, Any] = {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
-        "query_plan": query_plan,
-        "search_types": search_types,
-        "count_per_query": args.count,
-        "topics": [],
-    }
     failures: list[dict[str, str]] = []
     records: list[TweetRecord] = []
 
-    for topic, queries in query_plan.items():
-        topic_payload = {"topic": topic, "queries": []}
-        for query in queries:
-            query_payload: dict[str, Any] = {"query": query, "searches": []}
-            for search_type in search_types:
-                try:
-                    payload = run_xreach_search(xreach_bin, query, search_type, args.count)
-                    query_payload["searches"].append({"type": search_type, "payload": payload})
-                    for node in possible_tweet_nodes(payload):
-                        record = parse_record(topic, query, node)
-                        if record is not None:
-                            records.append(record)
-                except Exception as exc:
-                    failures.append({"topic": topic, "query": query, "error": str(exc)})
-                    query_payload["searches"].append({"type": search_type, "error": str(exc)})
-            topic_payload["queries"].append(query_payload)
-        raw_payload["topics"].append(topic_payload)
+    if args.from_raw:
+        raw_path_input = Path(args.from_raw).expanduser().resolve()
+        raw_payload, records, failures = load_records_from_raw(raw_path_input)
+        query_plan = raw_payload.get("query_plan") or {}
+    else:
+        xreach_bin = require_xreach()
+        auth_ok, auth_message = check_xreach_auth(xreach_bin)
+        if not auth_ok:
+            raise RuntimeError(auth_guidance(auth_message))
 
-    if not records and failures and all(is_auth_error(item["error"]) for item in failures):
-        raise RuntimeError(auth_guidance(failures[0]["error"]))
+        query_plan = build_query_plan(args)
+        search_types = ["top", "latest"] if args.search_type == "both" else [args.search_type]
+
+        raw_payload = {
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "query_plan": query_plan,
+            "search_types": search_types,
+            "count_per_query": args.count,
+            "topics": [],
+        }
+
+        for topic, queries in query_plan.items():
+            topic_payload = {"topic": topic, "queries": []}
+            for query in queries:
+                query_payload: dict[str, Any] = {"query": query, "searches": []}
+                for search_type in search_types:
+                    try:
+                        payload = run_xreach_search(xreach_bin, query, search_type, args.count)
+                        query_payload["searches"].append({"type": search_type, "payload": payload})
+                        for node in possible_tweet_nodes(payload):
+                            record = parse_record(topic, query, node)
+                            if record is not None:
+                                records.append(record)
+                    except Exception as exc:
+                        failures.append({"topic": topic, "query": query, "error": str(exc)})
+                        query_payload["searches"].append({"type": search_type, "error": str(exc)})
+                topic_payload["queries"].append(query_payload)
+            raw_payload["topics"].append(topic_payload)
+
+        if not records and failures and all(is_auth_error(item["error"]) for item in failures):
+            raise RuntimeError(auth_guidance(failures[0]["error"]))
 
     deduped_records: dict[str, TweetRecord] = {}
     for record in records:

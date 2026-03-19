@@ -72,6 +72,14 @@ python3 <skill-dir>/scripts/x_trends.py \
   --output-dir /abs/path/to/output/x-trends
 ```
 
+离线回放已有 raw 文件：
+
+```bash
+python3 <skill-dir>/scripts/x_trends.py \
+  --from-raw /abs/path/to/x-trends-raw.json \
+  --output-dir /abs/path/to/output/x-trends-replay
+```
+
 ## 4) 输出要求
 
 脚本输出四类产物：
