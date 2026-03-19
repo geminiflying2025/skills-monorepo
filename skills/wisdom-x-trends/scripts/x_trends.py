@@ -39,6 +39,16 @@ DEFAULT_TOPIC_QUERIES: dict[str, list[str]] = {
 }
 
 
+TOPIC_LABELS_ZH = {
+    "finance": "财经",
+    "tech": "科技",
+    "ai": "AI",
+    "economy": "经济",
+    "regional-conflicts": "地区冲突",
+    "custom": "自定义",
+}
+
+
 STOPWORDS = {
     "the",
     "and",
@@ -620,6 +630,55 @@ def cluster_records(records: list[TweetRecord]) -> list[dict[str, Any]]:
     return summarized
 
 
+def build_briefing_payload(
+    hotspots: list[dict[str, Any]], failures: list[dict[str, str]], generated_at: str
+) -> dict[str, Any]:
+    briefing_items = []
+    for hotspot in hotspots[:20]:
+        topic = hotspot["topic"]
+        rep = hotspot["representative"]
+        briefing_items.append(
+            {
+                "topic": topic,
+                "topic_zh": TOPIC_LABELS_ZH.get(topic, topic),
+                "hotspot_score": hotspot["hotspot_score"],
+                "event_title_en": hotspot["title"],
+                "event_summary_en": hotspot["summary"],
+                "keywords_en": hotspot["keywords"][:6],
+                "tweet_count": hotspot["tweet_count"],
+                "source_count": hotspot["source_count"],
+                "latest_created_at": hotspot["latest_created_at"],
+                "representative_post": {
+                    "author": rep["author"],
+                    "url": rep["url"],
+                    "text": clean_display_text(rep["text"]),
+                },
+                "examples": [
+                    {
+                        "author": example["author"],
+                        "url": example["url"],
+                        "text": clean_display_text(example["text"]),
+                    }
+                    for example in hotspot["examples"][:2]
+                ],
+            }
+        )
+
+    return {
+        "generated_at": generated_at,
+        "instruction_for_llm_zh": (
+            "请基于这些英文热点素材，输出中文热点简报。要求："
+            "1. 每条生成自然的中文标题，不要直译。"
+            "2. 每条用1-2句中文摘要说明发生了什么、为什么值得关注。"
+            "3. 优先提炼事件本身，弱化情绪化措辞和营销口吻。"
+            "4. 如素材明显偏谣言、喊单、挑战帖、教程营销，降权或跳过。"
+            "5. 输出按热度排序，可按主题分组。"
+        ),
+        "hotspots_for_llm": briefing_items,
+        "failures": failures,
+    }
+
+
 def render_markdown(hotspots: list[dict[str, Any]], failures: list[dict[str, str]]) -> str:
     lines = ["# X Hotspots", ""]
     if failures:
@@ -699,10 +758,12 @@ def main() -> int:
             deduped_records[key] = record
 
     hotspots = cluster_records(list(deduped_records.values()))
+    briefing = build_briefing_payload(hotspots, failures, raw_payload["generated_at"])
 
     raw_path = output_dir / "x-trends-raw.json"
     hotspots_path = output_dir / "x-trends-hotspots.json"
     markdown_path = output_dir / "x-trends-hotspots.md"
+    briefing_path = output_dir / "x-trends-briefing.json"
 
     raw_path.write_text(json.dumps(raw_payload, ensure_ascii=False, indent=2), encoding="utf-8")
     hotspots_path.write_text(
@@ -718,6 +779,7 @@ def main() -> int:
         ),
         encoding="utf-8",
     )
+    briefing_path.write_text(json.dumps(briefing, ensure_ascii=False, indent=2), encoding="utf-8")
     markdown_path.write_text(render_markdown(hotspots, failures), encoding="utf-8")
 
     print(
@@ -730,6 +792,7 @@ def main() -> int:
                 "raw": str(raw_path),
                 "hotspots_json": str(hotspots_path),
                 "hotspots_md": str(markdown_path),
+                "briefing_json": str(briefing_path),
                 "failures": failures,
             },
             ensure_ascii=False,

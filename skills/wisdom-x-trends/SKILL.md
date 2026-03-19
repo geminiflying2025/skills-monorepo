@@ -74,22 +74,26 @@ python3 <skill-dir>/scripts/x_trends.py \
 
 ## 4) 输出要求
 
-脚本输出三类产物：
+脚本输出四类产物：
 
 - `x-trends-raw.json`
 - `x-trends-hotspots.json`
 - `x-trends-hotspots.md`
+- `x-trends-briefing.json`
 
 热点结果要是事件级，不是简单 tweet 列表。
 
 每个热点至少包含：
 
 - 主题
-- 标题
+- 英文事件标题
 - 关键词
 - 代表性 tweet
 - 热度分
 - 时间信息
+
+其中 `x-trends-briefing.json` 是给大模型二次总结用的精简语料。
+拿到它以后，应由当前大模型统一输出中文热点简报，而不是依赖脚本直译。
 
 ## 5) 使用边界
 
