@@ -131,6 +131,43 @@ EVENT_TERMS = {
 }
 
 
+CHINA_POLITICS_BLOCK_TERMS = {
+    "xi jinping",
+    "习近平",
+    "li keqiang",
+    "李克强",
+    "zhao leji",
+    "赵乐际",
+    "wang huning",
+    "王沪宁",
+    "cai qi",
+    "蔡奇",
+    "ding xuexiang",
+    "丁薛祥",
+    "li xi",
+    "李希",
+    "hu jintao",
+    "胡锦涛",
+    "jiang zemin",
+    "江泽民",
+    "ccp",
+    "cpc",
+    "communist party of china",
+    "chinese communist party",
+    "中共中央",
+    "中央政治局",
+    "politburo",
+    "standing committee",
+    "全国人大",
+    "npc delegate",
+    "政协",
+    "中国国内政治",
+    "domestic politics in china",
+    "china leadership",
+    "chinese leadership",
+}
+
+
 @dataclass
 class TweetRecord:
     topic: str
@@ -304,6 +341,11 @@ def clean_display_text(text: str) -> str:
     return text.strip(" -\n\t")
 
 
+def should_block_record(text: str) -> bool:
+    lowered = clean_display_text(text).lower()
+    return any(term in lowered for term in CHINA_POLITICS_BLOCK_TERMS)
+
+
 def extract_tokens(text: str) -> set[str]:
     ascii_words = re.findall(r"[a-zA-Z][a-zA-Z0-9_-]{2,}", text.lower())
     cjk_chunks = re.findall(r"[\u4e00-\u9fff]{2,}", text)
@@ -425,6 +467,8 @@ def parse_record(topic: str, query: str, node: dict[str, Any]) -> TweetRecord | 
             tweet_id = str(first_non_empty(legacy, ["id_str", "id"]) or "").strip()
 
     if not text:
+        return None
+    if should_block_record(text):
         return None
 
     if not tweet_id and url:
