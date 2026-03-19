@@ -78,6 +78,49 @@ STOPWORDS = {
 }
 
 
+NOISE_TERMS = {
+    "breaking",
+    "holy cow",
+    "must watch",
+    "shocking",
+    "insane",
+    "diabolical",
+    "unbelievable",
+    "just in",
+    "wow",
+    "omg",
+    "bullish",
+    "bearish",
+    "challenge",
+    "masterclass",
+    "turned $",
+    "turned ",
+    "wild and crazy day",
+    "fed day recap",
+}
+
+
+EVENT_TERMS = {
+    "announces",
+    "launches",
+    "released",
+    "release",
+    "acquires",
+    "acquisition",
+    "earnings",
+    "tariffs",
+    "inflation",
+    "rates",
+    "ceasefire",
+    "sanctions",
+    "funding",
+    "guidance",
+    "forecast",
+    "upgrade",
+    "downgrade",
+}
+
+
 @dataclass
 class TweetRecord:
     topic: str
@@ -244,6 +287,13 @@ def normalize_text(text: str) -> str:
     return text
 
 
+def clean_display_text(text: str) -> str:
+    text = re.sub(r"https?://\S+", "", text or "").strip()
+    text = re.sub(r"^[^\w\u4e00-\u9fff]+", "", text)
+    text = re.sub(r"\s+", " ", text)
+    return text.strip(" -\n\t")
+
+
 def extract_tokens(text: str) -> set[str]:
     ascii_words = re.findall(r"[a-zA-Z][a-zA-Z0-9_-]{2,}", text.lower())
     cjk_chunks = re.findall(r"[\u4e00-\u9fff]{2,}", text)
@@ -253,6 +303,69 @@ def extract_tokens(text: str) -> set[str]:
             continue
         tokens.add(token)
     return tokens
+
+
+def extract_entities(text: str) -> set[str]:
+    entities = set()
+    for match in re.findall(r"\b[A-Z][a-zA-Z0-9&.-]{2,}(?:\s+[A-Z][a-zA-Z0-9&.-]{2,})*", text):
+        candidate = match.strip().lower()
+        if candidate not in STOPWORDS:
+            entities.add(candidate)
+    for match in re.findall(r"[\u4e00-\u9fff]{2,8}", text):
+        entities.add(match)
+    return entities
+
+
+def first_sentence(text: str) -> str:
+    text = clean_display_text(text)
+    parts = re.split(r"(?<=[.!?。！？])\s+|\n+", text)
+    return parts[0].strip() if parts else text[:140].strip()
+
+
+def has_event_signal(text: str) -> bool:
+    lowered = clean_display_text(text).lower()
+    if any(term in lowered for term in EVENT_TERMS):
+        return True
+    entities = extract_entities(text)
+    return len(entities) >= 2
+
+
+def record_quality_score(record: TweetRecord) -> float:
+    text = clean_display_text(record.text)
+    lowered = text.lower()
+    score = 1.0
+    if len(text) < 40:
+        score -= 0.2
+    noise_hits = sum(1 for term in NOISE_TERMS if term in lowered)
+    if noise_hits >= 2:
+        score -= 0.4
+    elif noise_hits == 1:
+        score -= 0.2
+    if lowered.count("!") >= 3:
+        score -= 0.15
+    if re.search(r"\b[A-Z]{4,}\b", text):
+        score -= 0.1
+    if text.endswith("?") and not has_event_signal(text):
+        score -= 0.35
+    if re.match(r"^(i|we)\s+\w+", lowered) and not has_event_signal(text):
+        score -= 0.25
+    if "$" in text and ("turned" in lowered or "made" in lowered):
+        score -= 0.35
+    if not extract_entities(text) and not (extract_tokens(record.normalized_text) & EVENT_TERMS):
+        score -= 0.15
+    if record.author:
+        score += 0.05
+    if record.engagement_score > 300:
+        score += 0.1
+    return max(score, 0.2)
+
+
+def event_signature(record: TweetRecord) -> tuple[str, ...]:
+    entities = sorted(extract_entities(record.text))
+    if entities:
+        return tuple(entities[:4])
+    tokens = sorted(extract_tokens(record.normalized_text) - STOPWORDS)
+    return tuple(tokens[:4])
 
 
 def possible_tweet_nodes(payload: Any) -> list[dict[str, Any]]:
@@ -392,16 +505,51 @@ def similarity(a: TweetRecord, b: TweetRecord) -> float:
         return 0.0
     inter = len(ta & tb)
     union = len(ta | tb)
-    return inter / union if union else 0.0
+    token_score = inter / union if union else 0.0
+    ea = extract_entities(a.text)
+    eb = extract_entities(b.text)
+    entity_score = len(ea & eb) / len(ea | eb) if ea and eb else 0.0
+    signature_bonus = 0.2 if event_signature(a) and event_signature(a) == event_signature(b) else 0.0
+    return token_score * 0.55 + entity_score * 0.45 + signature_bonus
+
+
+def cluster_similarity(record: TweetRecord, cluster: list[TweetRecord]) -> float:
+    if not cluster:
+        return 0.0
+    top_scores = sorted((similarity(record, item) for item in cluster), reverse=True)[:3]
+    return sum(top_scores) / len(top_scores)
+
+
+def synthesize_title(cluster: list[TweetRecord], keywords: list[str]) -> str:
+    representative = max(cluster, key=lambda x: x.engagement_score * record_quality_score(x))
+    base = first_sentence(representative.text)
+    base = re.sub(r"^(breaking|just in|update)\s*[:：-]?\s*", "", base, flags=re.IGNORECASE)
+    base = re.sub(r"^[^A-Za-z0-9\u4e00-\u9fff]+", "", base)
+    if len(base) <= 110 and len(cluster) == 1:
+        return base
+    entity_candidates = Counter()
+    for item in cluster:
+        entity_candidates.update(extract_entities(item.text))
+    entities = [token for token, _ in entity_candidates.most_common(3)]
+    lead = ", ".join(entities[:2]) if entities else representative.topic
+    tail = ", ".join(keywords[:3]) if keywords else clean_display_text(base)[:80]
+    return f"{lead}: {tail}"[:140]
 
 
 def cluster_records(records: list[TweetRecord]) -> list[dict[str, Any]]:
+    records = [record for record in records if record_quality_score(record) >= 0.7]
+    records.sort(
+        key=lambda x: (x.topic, x.engagement_score * record_quality_score(x), recency_factor(x.created_at, 48)),
+        reverse=True,
+    )
     clusters: list[list[TweetRecord]] = []
     for record in records:
         placed = False
         for cluster in clusters:
             anchor = cluster[0]
-            if record.topic == anchor.topic and similarity(record, anchor) >= 0.35:
+            if record.topic != anchor.topic:
+                continue
+            if cluster_similarity(record, cluster) >= 0.3:
                 cluster.append(record)
                 placed = True
                 break
@@ -410,7 +558,9 @@ def cluster_records(records: list[TweetRecord]) -> list[dict[str, Any]]:
 
     summarized: list[dict[str, Any]] = []
     for cluster in clusters:
-        representative = max(cluster, key=lambda x: x.engagement_score + len(x.text) / 500.0)
+        representative = max(
+            cluster, key=lambda x: x.engagement_score * record_quality_score(x) + len(x.text) / 500.0
+        )
         keyword_counter: Counter[str] = Counter()
         sources = set()
         for item in cluster:
@@ -420,16 +570,20 @@ def cluster_records(records: list[TweetRecord]) -> list[dict[str, Any]]:
 
         keywords = [token for token, _ in keyword_counter.most_common(8)]
         score = sum(
-            item.engagement_score * (0.7 + 0.3 * recency_factor(item.created_at, hours_window=48))
+            item.engagement_score
+            * record_quality_score(item)
+            * (0.7 + 0.3 * recency_factor(item.created_at, hours_window=48))
             for item in cluster
         )
         score *= 1.0 + min(len(sources), 5) * 0.08
         score *= 1.0 + math.log(len(cluster) + 1, 2) * 0.12
 
+        summary = synthesize_title(cluster, keywords)
         summarized.append(
             {
                 "topic": representative.topic,
-                "title": representative.text[:140],
+                "title": summary,
+                "summary": first_sentence(representative.text),
                 "keywords": keywords,
                 "tweet_count": len(cluster),
                 "source_count": len(sources),
@@ -483,6 +637,7 @@ def render_markdown(hotspots: list[dict[str, Any]], failures: list[dict[str, str
     for idx, hotspot in enumerate(hotspots, start=1):
         lines.append(f"### {idx}. [{hotspot['topic']}] {hotspot['title']}")
         lines.append(f"- Score: {hotspot['hotspot_score']}")
+        lines.append(f"- Summary: {hotspot['summary']}")
         lines.append(f"- Keywords: {', '.join(hotspot['keywords'])}")
         lines.append(f"- Tweet count: {hotspot['tweet_count']}")
         lines.append(f"- Source count: {hotspot['source_count']}")
