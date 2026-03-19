@@ -13,6 +13,9 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote_plus, urlparse
+from urllib.request import urlopen
+from xml.etree import ElementTree as ET
 
 
 DEFAULT_TOPIC_QUERIES: dict[str, list[str]] = {
@@ -46,6 +49,32 @@ TOPIC_LABELS_ZH = {
     "economy": "经济",
     "regional-conflicts": "地区冲突",
     "custom": "自定义",
+}
+
+
+TRUSTED_NEWS_SOURCES = {
+    "reuters": 3,
+    "associated press": 3,
+    "ap news": 3,
+    "bloomberg": 3,
+    "financial times": 3,
+    "wall street journal": 3,
+    "bbc": 2,
+    "the guardian": 2,
+    "cnn": 2,
+    "nbc news": 2,
+    "abc news": 2,
+    "cbs news": 2,
+    "the washington post": 2,
+    "the new york times": 2,
+    "al jazeera": 2,
+    "npr": 2,
+    "axios": 1,
+    "politico": 1,
+    "the hill": 1,
+    "yahoo finance": 1,
+    "marketwatch": 1,
+    "cnbc": 1,
 }
 
 
@@ -339,6 +368,16 @@ def clean_display_text(text: str) -> str:
     text = re.sub(r"^[^\w\u4e00-\u9fff]+", "", text)
     text = re.sub(r"\s+", " ", text)
     return text.strip(" -\n\t")
+
+
+def compact_query_text(text: str, max_terms: int = 8) -> str:
+    terms = []
+    for token in re.findall(r"[A-Za-z][A-Za-z0-9.-]{2,}", clean_display_text(text)):
+        lowered = token.lower()
+        if lowered in STOPWORDS:
+            continue
+        terms.append(token)
+    return " ".join(terms[:max_terms])
 
 
 def should_block_record(text: str) -> bool:
@@ -674,6 +713,99 @@ def cluster_records(records: list[TweetRecord]) -> list[dict[str, Any]]:
     return summarized
 
 
+def normalize_source_name(name: str) -> str:
+    lowered = (name or "").strip().lower()
+    lowered = re.sub(r"\s+", " ", lowered)
+    return lowered
+
+
+def extract_source_name(item: ET.Element, link: str) -> str:
+    source = item.findtext("source")
+    if source:
+        return source.strip()
+    host = urlparse(link).netloc.lower()
+    host = re.sub(r"^www\.", "", host)
+    return host
+
+
+def google_news_search(query: str, max_items: int = 5) -> list[dict[str, str]]:
+    if not query.strip():
+        return []
+    url = (
+        "https://news.google.com/rss/search"
+        f"?q={quote_plus(query)}&hl=en-US&gl=US&ceid=US:en"
+    )
+    with urlopen(url, timeout=6) as response:
+        payload = response.read()
+    root = ET.fromstring(payload)
+    items = []
+    for item in root.findall("./channel/item")[:max_items]:
+        title = item.findtext("title") or ""
+        link = item.findtext("link") or ""
+        source = extract_source_name(item, link)
+        items.append({"title": title.strip(), "link": link.strip(), "source": source})
+    return items
+
+
+def verify_hotspot(hotspot: dict[str, Any]) -> dict[str, Any]:
+    query = compact_query_text(hotspot["summary"]) or compact_query_text(hotspot["title"])
+    try:
+        matches = google_news_search(query)
+    except Exception as exc:
+        return {
+            "verification_status": "verification_error",
+            "credibility": "中",
+            "recommended_action": "人工复核",
+            "verification_notes_zh": f"新闻验证接口暂时失败：{exc}",
+            "matched_sources": [],
+        }
+
+    trusted_hits = 0
+    source_scores = 0
+    matched_sources = []
+    for match in matches:
+        source_name = normalize_source_name(match["source"])
+        score = 0
+        for trusted_name, trusted_score in TRUSTED_NEWS_SOURCES.items():
+            if trusted_name in source_name:
+                score = max(score, trusted_score)
+        if score > 0:
+            trusted_hits += 1
+            source_scores += score
+        matched_sources.append(
+            {
+                "source": match["source"],
+                "title": match["title"],
+                "link": match["link"],
+                "trusted_score": score,
+            }
+        )
+
+    if source_scores >= 5 or trusted_hits >= 2:
+        return {
+            "verification_status": "verified",
+            "credibility": "高",
+            "recommended_action": "纳入正式简报",
+            "verification_notes_zh": "已有多条主流媒体或高可信来源跟进，可作为已核实热点处理。",
+            "matched_sources": matched_sources[:5],
+        }
+    if source_scores >= 2 or matched_sources:
+        return {
+            "verification_status": "partially_verified",
+            "credibility": "中",
+            "recommended_action": "标注后纳入简报",
+            "verification_notes_zh": "已有新闻线索或单一较可信来源，但仍建议保留“部分核实”标记。",
+            "matched_sources": matched_sources[:5],
+        }
+    return {
+        "verification_status": "unverified",
+        "credibility": "低",
+        "recommended_action": "暂不纳入正式简报",
+        "verification_notes_zh": "暂未检索到可靠新闻源交叉验证，更适合作为待核实线索。",
+        "matched_sources": [],
+    }
+
+
 def build_briefing_payload(
     hotspots: list[dict[str, Any]], failures: list[dict[str, str]], generated_at: str
 ) -> dict[str, Any]:
@@ -681,6 +813,7 @@ def build_briefing_payload(
     for hotspot in hotspots[:20]:
         topic = hotspot["topic"]
         rep = hotspot["representative"]
+        verification = verify_hotspot(hotspot)
         briefing_items.append(
             {
                 "topic": topic,
@@ -692,6 +825,11 @@ def build_briefing_payload(
                 "tweet_count": hotspot["tweet_count"],
                 "source_count": hotspot["source_count"],
                 "latest_created_at": hotspot["latest_created_at"],
+                "credibility_zh": verification["credibility"],
+                "verification_status": verification["verification_status"],
+                "recommended_action_zh": verification["recommended_action"],
+                "verification_notes_zh": verification["verification_notes_zh"],
+                "matched_sources": verification["matched_sources"],
                 "representative_post": {
                     "author": rep["author"],
                     "url": rep["url"],
@@ -716,7 +854,8 @@ def build_briefing_payload(
             "2. 每条用1-2句中文摘要说明发生了什么、为什么值得关注。"
             "3. 优先提炼事件本身，弱化情绪化措辞和营销口吻。"
             "4. 如素材明显偏谣言、喊单、挑战帖、教程营销，降权或跳过。"
-            "5. 输出按热度排序，可按主题分组。"
+            "5. 每条明确写出可信度、核实状态、是否建议纳入正式简报。"
+            "6. 输出按热度排序，可按主题分组。"
         ),
         "hotspots_for_llm": briefing_items,
         "failures": failures,
