@@ -5,6 +5,7 @@ import base64
 import pytesseract
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+from pytesseract import TesseractNotFoundError
 
 from ocr_utils import clean_captcha_text, preprocess_image
 
@@ -41,5 +42,10 @@ def solve(body: SolveRequest) -> SolveResponse:
         )
         text = clean_captcha_text(raw_text)
         return SolveResponse(text=text, raw_text=raw_text)
+    except TesseractNotFoundError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="tesseract binary not found in PATH; install tesseract first",
+        ) from exc
     except Exception as exc:  # pragma: no cover
         raise HTTPException(status_code=500, detail=f"ocr failed: {exc}") from exc
