@@ -1,0 +1,12 @@
+url: "https://your-own-site.example.com/captcha-demo"
+selectors:
+  captcha_image: "img#captchaImg"
+  captcha_input: "input#captcha"
+  submit_button: "button[type='submit']"
+  refresh_button: "img#captchaImg"
+  error_message: ".captcha-error"
+runtime:
+  max_attempts: 5
+  wait_after_submit_ms: 1000
+  wait_after_refresh_ms: 700
+  ocr_base_url: "http://127.0.0.1:8765"
