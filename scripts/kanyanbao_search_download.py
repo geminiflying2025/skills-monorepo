@@ -359,6 +359,12 @@ def download_file(session: requests.Session, url: str, out_path: Path) -> tuple[
         return False, 0, str(e)
 
 
+def find_existing_by_objid(output_dir: Path, objid: int) -> Path | None:
+    # Existing files follow: "<index>_<title>_<objid>.<ext>"
+    matches = list(output_dir.glob(f"*_{objid}.*"))
+    return matches[0] if matches else None
+
+
 def main() -> int:
     args = parse_args()
     state_file = Path(args.state_file)
@@ -390,6 +396,8 @@ def main() -> int:
     )
 
     manifest: list[dict[str, Any]] = []
+    skipped_existing = 0
+    downloaded_new = 0
     for i, item in enumerate(results, start=1):
         ext = item["filetype"] or "pdf"
         file_name = f"{i:02d}_{sanitize_filename(item['title'])}_{item['objid']}.{ext}"
@@ -409,10 +417,20 @@ def main() -> int:
             row["ok"] = True
             row["status"] = 0
         else:
-            ok, status, err = download_file(session, item["download_url"], output_dir / file_name)
-            row["ok"] = ok
-            row["status"] = status
-            row["error"] = err
+            existing = find_existing_by_objid(output_dir, item["objid"])
+            if existing is not None:
+                row["ok"] = True
+                row["status"] = 208
+                row["error"] = "skipped_existing"
+                row["file"] = existing.name
+                skipped_existing += 1
+            else:
+                ok, status, err = download_file(session, item["download_url"], output_dir / file_name)
+                row["ok"] = ok
+                row["status"] = status
+                row["error"] = err
+                if ok:
+                    downloaded_new += 1
         manifest.append(row)
 
     json_path = output_dir / "download_manifest.json"
@@ -440,6 +458,8 @@ def main() -> int:
         "top": args.top,
         "matched": len(results),
         "downloaded_ok": sum(1 for x in manifest if x["ok"]),
+        "downloaded_new": downloaded_new,
+        "skipped_existing": skipped_existing,
         "download_failed": sum(1 for x in manifest if not x["ok"]),
         "output_dir": str(output_dir),
         "manifest_json": str(json_path),
