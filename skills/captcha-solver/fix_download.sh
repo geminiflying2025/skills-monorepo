@@ -26,4 +26,4 @@ python run.py \
   --submit-button "a#form_post_button" \
   --refresh-button "img#qrcode" \
   --expected-length 4 \
-  --max-attempts 1
+  --max-attempts 3
