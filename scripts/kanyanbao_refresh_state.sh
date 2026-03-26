@@ -24,7 +24,13 @@ with sync_playwright() as p:
     context = browser.new_context()
     page = context.new_page()
     page.goto(login_url, wait_until="domcontentloaded")
-    input("请在弹出的浏览器中完成登录，然后回到终端按回车保存登录态...")
+    prompt = "请在弹出的浏览器中完成登录，然后回到终端按回车保存登录态..."
+    try:
+        with open("/dev/tty", "r", encoding="utf-8", errors="ignore") as tty:
+            print(prompt, end="", flush=True)
+            tty.readline()
+    except OSError:
+        input(prompt)
     state_path.parent.mkdir(parents=True, exist_ok=True)
     context.storage_state(path=str(state_path))
     print(f"saved storage state: {state_path}")
