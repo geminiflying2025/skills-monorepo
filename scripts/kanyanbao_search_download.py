@@ -21,6 +21,10 @@ BASE = "https://www.kanyanbao.com"
 COLUMNS_URL = f"{BASE}/newreport/getNewDocColumns.json?isApp=false"
 SEARCH_URL = f"{BASE}/newsadapter/report/fulltext_report_search.json"
 DOWNLOAD_URL = f"{BASE}/imageserver/report/download.htm?id={{objid}}"
+DEFAULT_CAPTCHA_COMMAND = (
+    "/Users/macmini/Projects/skills-monorepo/skills/captcha-solver/fix_download.sh "
+    '"$CAPTCHA_URL"'
+)
 DEFAULT_COLUMNS = [
     "世界经济",
     "宏观经济运行",
@@ -90,7 +94,7 @@ def parse_args() -> argparse.Namespace:
     )
     p.add_argument(
         "--captcha-command",
-        default="",
+        default=DEFAULT_CAPTCHA_COMMAND,
         help="command to run when a captcha page is detected; receives CAPTCHA_URL and DOWNLOAD_URL in env",
     )
     p.add_argument("--dry-run", action="store_true", help="only list results without downloading")
