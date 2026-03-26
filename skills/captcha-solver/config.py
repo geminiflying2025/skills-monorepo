@@ -22,6 +22,7 @@ class RuntimeConfig:
     wait_after_submit_ms: int = 1000
     wait_after_refresh_ms: int = 600
     ocr_base_url: str = "http://127.0.0.1:8765"
+    expected_length: int | None = None
 
 
 @dataclass
@@ -72,6 +73,11 @@ def load_config(path: str) -> CaptchaConfig:
         wait_after_submit_ms=int(raw_runtime.get("wait_after_submit_ms", 1000)),
         wait_after_refresh_ms=int(raw_runtime.get("wait_after_refresh_ms", 600)),
         ocr_base_url=str(raw_runtime.get("ocr_base_url", "http://127.0.0.1:8765")).rstrip("/"),
+        expected_length=(
+            int(raw_runtime["expected_length"])
+            if raw_runtime.get("expected_length") is not None
+            else None
+        ),
     )
 
     if runtime.max_attempts < 1:

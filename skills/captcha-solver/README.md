@@ -52,8 +52,11 @@ python run.py \
   --url "https://your-own-site.example.com/login" \
   --captcha-image "img#captchaImg" \
   --captcha-input "input#captcha" \
-  --submit-button "button[type='submit']"
+  --submit-button "button[type='submit']" \
+  --max-attempts 8
 ```
+
+For 4-digit CAPTCHA pages, you can enforce expected length by config (`runtime.expected_length: 4`).
 
 ## Debug Options
 

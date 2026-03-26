@@ -71,6 +71,32 @@ def _is_error_visible(page, error_selector: str | None) -> bool:
         return False
 
 
+def _contains_failure_hint_text(page) -> bool:
+    hints = [
+        "验证码错误",
+        "验证码不正确",
+        "验证码有误",
+        "校验失败",
+        "验证失败",
+        "请重新输入验证码",
+        "请输入图形验证码",
+    ]
+    try:
+        body_text = page.locator("body").inner_text()
+    except Exception:
+        return False
+    return any(hint in body_text for hint in hints)
+
+
+def _is_probably_still_on_challenge(page, cfg: CaptchaConfig, url_before_submit: str) -> bool:
+    try:
+        input_visible = page.locator(cfg.selectors.captcha_input).first.is_visible()
+    except Exception:
+        input_visible = False
+    same_url = page.url.split("#", maxsplit=1)[0] == url_before_submit.split("#", maxsplit=1)[0]
+    return same_url and input_visible
+
+
 def pick_first_candidate(
     candidates: list[str],
     exists_fn: Callable[[str], bool],
@@ -148,6 +174,7 @@ def _build_config_from_args(args: argparse.Namespace) -> CaptchaConfig:
                 wait_after_submit_ms=args.wait_after_submit_ms,
                 wait_after_refresh_ms=args.wait_after_refresh_ms,
                 ocr_base_url=args.ocr_base_url,
+                expected_length=args.expected_length,
             ),
         )
 
@@ -167,6 +194,8 @@ def _build_config_from_args(args: argparse.Namespace) -> CaptchaConfig:
         cfg.runtime.ocr_base_url = args.ocr_base_url
     if args.max_attempts:
         cfg.runtime.max_attempts = args.max_attempts
+    if args.expected_length:
+        cfg.runtime.expected_length = args.expected_length
     if args.wait_after_submit_ms:
         cfg.runtime.wait_after_submit_ms = args.wait_after_submit_ms
     if args.wait_after_refresh_ms:
@@ -190,10 +219,27 @@ def run_once(cfg: CaptchaConfig, headless: bool, dry_run: bool) -> RunResult:
                 page.wait_for_selector(cfg.selectors.captcha_image, timeout=5000)
                 image_bytes = page.locator(cfg.selectors.captcha_image).screenshot()
 
-                text = call_ocr(ocr_endpoint, image_bytes)
+                try:
+                    text = call_ocr(ocr_endpoint, image_bytes)
+                except Exception as exc:
+                    print(f"ocr request failed on attempt {attempt}: {exc}", flush=True)
+                    if cfg.selectors.refresh_button:
+                        page.click(cfg.selectors.refresh_button)
+                        page.wait_for_timeout(cfg.runtime.wait_after_refresh_ms)
+                    continue
                 last_text = text
 
                 if not text:
+                    if cfg.selectors.refresh_button:
+                        page.click(cfg.selectors.refresh_button)
+                        page.wait_for_timeout(cfg.runtime.wait_after_refresh_ms)
+                    continue
+
+                if cfg.runtime.expected_length and len(text) != cfg.runtime.expected_length:
+                    print(
+                        f"ocr length mismatch on attempt {attempt}: got={len(text)} text={text}",
+                        flush=True,
+                    )
                     if cfg.selectors.refresh_button:
                         page.click(cfg.selectors.refresh_button)
                         page.wait_for_timeout(cfg.runtime.wait_after_refresh_ms)
@@ -204,13 +250,23 @@ def run_once(cfg: CaptchaConfig, headless: bool, dry_run: bool) -> RunResult:
                     browser.close()
                     return RunResult(success=True, attempts=attempt, last_text=text)
 
+                url_before_submit = page.url
                 page.click(cfg.selectors.submit_button)
                 page.wait_for_timeout(cfg.runtime.wait_after_submit_ms)
 
-                if not _is_error_visible(page, cfg.selectors.error_message):
+                explicit_error = _is_error_visible(page, cfg.selectors.error_message)
+                text_error = _contains_failure_hint_text(page)
+                still_on_challenge = _is_probably_still_on_challenge(page, cfg, url_before_submit)
+
+                if not explicit_error and not text_error and not still_on_challenge:
                     browser.close()
                     return RunResult(success=True, attempts=attempt, last_text=text)
 
+                print(
+                    "submit appears failed, retrying: "
+                    f"explicit_error={explicit_error} text_error={text_error} still_on_challenge={still_on_challenge}",
+                    flush=True,
+                )
                 if cfg.selectors.refresh_button:
                     page.click(cfg.selectors.refresh_button)
                     page.wait_for_timeout(cfg.runtime.wait_after_refresh_ms)
@@ -239,6 +295,7 @@ def parse_args() -> argparse.Namespace:
         help="OCR service base URL",
     )
     parser.add_argument("--max-attempts", type=int, default=5, help="Max retry attempts")
+    parser.add_argument("--expected-length", type=int, help="Expected captcha text length")
     parser.add_argument("--wait-after-submit-ms", type=int, default=1000)
     parser.add_argument("--wait-after-refresh-ms", type=int, default=600)
     parser.add_argument("--headless", action="store_true", help="Run browser headless")

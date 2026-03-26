@@ -7,6 +7,7 @@ selectors:
   error_message: ".captcha-error"
 runtime:
   max_attempts: 5
+  expected_length: 4
   wait_after_submit_ms: 1000
   wait_after_refresh_ms: 700
   ocr_base_url: "http://127.0.0.1:8765"
