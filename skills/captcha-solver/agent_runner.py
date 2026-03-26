@@ -5,7 +5,7 @@ import base64
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, unquote, urljoin, urlparse
 
 import requests
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
@@ -65,6 +65,18 @@ def resolve_storage_state_path(url: str, storage_state_path: str | None) -> str 
     return None
 
 
+def extract_redirect_target_url(url: str) -> str | None:
+    parsed = urlparse(url)
+    redirect_values = parse_qs(parsed.query).get("redirect_url", [])
+    if not redirect_values:
+        return None
+
+    raw_target = unquote(redirect_values[0]).strip()
+    if not raw_target:
+        return None
+    return urljoin(f"{parsed.scheme}://{parsed.netloc}", raw_target)
+
+
 def call_ocr(ocr_endpoint: str, image_bytes: bytes, timeout_s: float = 8.0) -> str:
     payload = {"image_base64": base64.b64encode(image_bytes).decode("ascii")}
     response = requests.post(ocr_endpoint, json=payload, timeout=timeout_s)
@@ -113,11 +125,12 @@ def _is_probably_still_on_challenge(page, cfg: CaptchaConfig, url_before_submit:
 
 def _is_submission_success(
     download_started: bool,
+    target_reached: bool,
     explicit_error: bool,
     text_error: bool,
     still_on_challenge: bool,
 ) -> bool:
-    if download_started:
+    if download_started or target_reached:
         return True
     return not explicit_error and not text_error and not still_on_challenge
 
@@ -239,6 +252,7 @@ def run_once(
 ) -> RunResult:
     ocr_endpoint = build_solve_endpoint(cfg)
     storage_state_path = resolve_storage_state_path(cfg.url, storage_state_path)
+    redirect_target_url = extract_redirect_target_url(cfg.url)
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=headless)
@@ -260,6 +274,16 @@ def run_once(
         cfg = _auto_detect_selectors(page, cfg)
 
         last_text = ""
+        observed_target_request = False
+
+        if redirect_target_url:
+            def on_request(request) -> None:
+                nonlocal observed_target_request
+                if request.url.startswith(redirect_target_url):
+                    observed_target_request = True
+
+            page.on("request", on_request)
+
         try:
             for attempt in range(1, cfg.runtime.max_attempts + 1):
                 page.wait_for_selector(cfg.selectors.captcha_image, timeout=5000)
@@ -317,9 +341,13 @@ def run_once(
                 explicit_error = _is_error_visible(page, cfg.selectors.error_message)
                 text_error = _contains_failure_hint_text(page)
                 still_on_challenge = _is_probably_still_on_challenge(page, cfg, url_before_submit)
+                target_reached = observed_target_request or (
+                    redirect_target_url is not None and page.url.startswith(redirect_target_url)
+                )
 
                 if _is_submission_success(
                     download_started=download_started,
+                    target_reached=target_reached,
                     explicit_error=explicit_error,
                     text_error=text_error,
                     still_on_challenge=still_on_challenge,
@@ -333,7 +361,8 @@ def run_once(
 
                 print(
                     "submit appears failed, retrying: "
-                    f"download_started={download_started} explicit_error={explicit_error} "
+                    f"download_started={download_started} target_reached={target_reached} "
+                    f"explicit_error={explicit_error} "
                     f"text_error={text_error} still_on_challenge={still_on_challenge}",
                     flush=True,
                 )

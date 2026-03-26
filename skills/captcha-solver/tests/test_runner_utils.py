@@ -1,6 +1,7 @@
 from config import CaptchaConfig, RuntimeConfig, Selectors
 from agent_runner import (
     DEFAULT_KANYANBAO_STORAGE_STATE,
+    extract_redirect_target_url,
     _is_submission_success,
     build_solve_endpoint,
     pick_first_candidate,
@@ -44,7 +45,29 @@ def test_resolve_storage_state_path_uses_kanyanbao_default() -> None:
 def test_submission_success_when_download_started_even_if_page_unchanged() -> None:
     assert _is_submission_success(
         download_started=True,
+        target_reached=False,
         explicit_error=False,
         text_error=False,
         still_on_challenge=True,
+    )
+
+
+def test_submission_success_when_redirect_target_reached() -> None:
+    assert _is_submission_success(
+        download_started=False,
+        target_reached=True,
+        explicit_error=False,
+        text_error=False,
+        still_on_challenge=True,
+    )
+
+
+def test_extract_redirect_target_url_returns_absolute_url() -> None:
+    url = (
+        "https://www.kanyanbao.com/new/view/report/download_check.jsp"
+        "?redirect_url=%2Fimageserver%2Freport%2Fdownload.htm%3Fid%3D42983258"
+    )
+    assert (
+        extract_redirect_target_url(url)
+        == "https://www.kanyanbao.com/imageserver/report/download.htm?id=42983258"
     )
