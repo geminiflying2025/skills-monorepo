@@ -168,8 +168,7 @@ def resolve_output_dir(args: argparse.Namespace, start: str, end: str) -> Path:
     if args.output_dir:
         return Path(args.output_dir)
 
-    keyword = (args.keyword or "全部").strip()
-    return LOCAL_OUTPUT_ROOT / f"kanyanbao-search-{keyword}-{start}_to_{end}"
+    return LOCAL_OUTPUT_ROOT / f"kanyanbao-{start}_to_{end}"
 
 
 def resolve_sync_output_dir(output_dir: Path) -> Path:

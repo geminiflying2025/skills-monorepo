@@ -28,7 +28,7 @@ class ResolveOutputDirTests(unittest.TestCase):
 
         self.assertEqual(
             output_dir,
-            Path("output/kanyanbao-search-全部-2026-03-20_to_2026-03-26"),
+            Path("output/kanyanbao-2026-03-20_to_2026-03-26"),
         )
 
     def test_explicit_output_dir_overrides_default(self):
@@ -41,13 +41,13 @@ class ResolveOutputDirTests(unittest.TestCase):
 
     def test_sync_output_dir_targets_network_volume(self):
         mod = load_module()
-        output_dir = Path("output/kanyanbao-search-黄金-2026-03-20_to_2026-03-26")
+        output_dir = Path("output/kanyanbao-2026-03-20_to_2026-03-26")
 
         sync_dir = mod.resolve_sync_output_dir(output_dir)
 
         self.assertEqual(
             sync_dir,
-            Path("/Volumes/资产-投资研究/研报下载/kanyanbao-search-黄金-2026-03-20_to_2026-03-26"),
+            Path("/Volumes/资产-投资研究/研报下载/kanyanbao-2026-03-20_to_2026-03-26"),
         )
 
 
