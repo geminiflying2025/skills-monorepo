@@ -20,9 +20,11 @@ class RunResult:
 
 
 DEFAULT_CAPTCHA_IMAGE_CANDIDATES = [
+    "img#qrcode",
     "img#captchaImg",
     "img[id*='captcha' i]",
     "img[src*='captcha' i]",
+    "img[title*='刷新验证码']",
     "canvas[id*='captcha' i]",
 ]
 
@@ -35,6 +37,8 @@ DEFAULT_CAPTCHA_INPUT_CANDIDATES = [
 ]
 
 DEFAULT_SUBMIT_BUTTON_CANDIDATES = [
+    "a#form_post_button",
+    "a:has-text('验证')",
     "button[type='submit']",
     "input[type='submit']",
     "button:has-text('登录')",
