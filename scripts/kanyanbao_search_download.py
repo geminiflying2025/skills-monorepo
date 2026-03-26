@@ -24,6 +24,7 @@ DOWNLOAD_URL = f"{BASE}/imageserver/report/download.htm?id={{objid}}"
 DEFAULT_CAPTCHA_COMMAND = (
     "/Users/macmini/Projects/skills-monorepo/skills/captcha-solver/fix_download.sh"
 )
+DEFAULT_OUTPUT_ROOT = Path("/Volumes/资产-投资研究/研报下载")
 DEFAULT_COLUMNS = [
     "世界经济",
     "宏观经济运行",
@@ -159,6 +160,19 @@ def resolve_date_range(args: argparse.Namespace) -> tuple[str, str, int]:
     end_d = date.today()
     start_d = end_d - timedelta(days=6)
     return start_d.isoformat(), end_d.isoformat(), 7
+
+
+def resolve_output_dir(args: argparse.Namespace, start: str, end: str) -> Path:
+    if args.output_dir:
+        return Path(args.output_dir)
+
+    if not DEFAULT_OUTPUT_ROOT.exists():
+        raise FileNotFoundError(
+            f"default output root is not available: {DEFAULT_OUTPUT_ROOT}"
+        )
+
+    keyword = (args.keyword or "全部").strip()
+    return DEFAULT_OUTPUT_ROOT / f"kanyanbao-search-{keyword}-{start}_to_{end}"
 
 
 def load_state_session(state_file: Path) -> requests.Session:
@@ -463,11 +477,7 @@ def main() -> int:
     start, end, effective_days = resolve_date_range(args)
 
     columns_input = collect_column_filters(args)
-    output_dir = (
-        Path(args.output_dir)
-        if args.output_dir
-        else Path("output") / f"kanyanbao-search-{(args.keyword or '全部').strip()}-{start}_to_{end}"
-    )
+    output_dir = resolve_output_dir(args, start, end)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     session = load_state_session(state_file)
