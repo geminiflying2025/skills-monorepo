@@ -5,6 +5,7 @@ import argparse
 import csv
 import json
 import re
+import shutil
 import subprocess
 from dataclasses import dataclass
 from datetime import date, timedelta
@@ -25,6 +26,7 @@ DEFAULT_CAPTCHA_COMMAND = (
     "/Users/macmini/Projects/skills-monorepo/skills/captcha-solver/fix_download.sh"
 )
 DEFAULT_OUTPUT_ROOT = Path("/Volumes/资产-投资研究/研报下载")
+LOCAL_OUTPUT_ROOT = Path("output")
 DEFAULT_COLUMNS = [
     "世界经济",
     "宏观经济运行",
@@ -166,13 +168,26 @@ def resolve_output_dir(args: argparse.Namespace, start: str, end: str) -> Path:
     if args.output_dir:
         return Path(args.output_dir)
 
-    if not DEFAULT_OUTPUT_ROOT.exists():
-        raise FileNotFoundError(
-            f"default output root is not available: {DEFAULT_OUTPUT_ROOT}"
-        )
-
     keyword = (args.keyword or "全部").strip()
-    return DEFAULT_OUTPUT_ROOT / f"kanyanbao-search-{keyword}-{start}_to_{end}"
+    return LOCAL_OUTPUT_ROOT / f"kanyanbao-search-{keyword}-{start}_to_{end}"
+
+
+def resolve_sync_output_dir(output_dir: Path) -> Path:
+    return DEFAULT_OUTPUT_ROOT / output_dir.name
+
+
+def sync_output_dir(output_dir: Path, sync_dir: Path) -> tuple[bool, str]:
+    if not DEFAULT_OUTPUT_ROOT.exists():
+        return False, f"sync root is not available: {DEFAULT_OUTPUT_ROOT}"
+
+    sync_dir.mkdir(parents=True, exist_ok=True)
+    for source in output_dir.iterdir():
+        target = sync_dir / source.name
+        if source.is_dir():
+            shutil.copytree(source, target, dirs_exist_ok=True)
+        else:
+            shutil.copy2(source, target)
+    return True, ""
 
 
 def load_state_session(state_file: Path) -> requests.Session:
@@ -587,6 +602,13 @@ def main() -> int:
         "manifest_json": str(json_path),
         "manifest_csv": str(csv_path),
     }
+
+    sync_dir = resolve_sync_output_dir(output_dir)
+    sync_ok, sync_error = sync_output_dir(output_dir, sync_dir)
+    summary["sync_dir"] = str(sync_dir)
+    summary["sync_ok"] = sync_ok
+    summary["sync_error"] = sync_error
+
     print(json.dumps(summary, ensure_ascii=False, indent=2))
     return 0
 
