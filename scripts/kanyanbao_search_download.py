@@ -22,8 +22,7 @@ COLUMNS_URL = f"{BASE}/newreport/getNewDocColumns.json?isApp=false"
 SEARCH_URL = f"{BASE}/newsadapter/report/fulltext_report_search.json"
 DOWNLOAD_URL = f"{BASE}/imageserver/report/download.htm?id={{objid}}"
 DEFAULT_CAPTCHA_COMMAND = (
-    "/Users/macmini/Projects/skills-monorepo/skills/captcha-solver/fix_download.sh "
-    '"$CAPTCHA_URL"'
+    "/Users/macmini/Projects/skills-monorepo/skills/captcha-solver/fix_download.sh"
 )
 DEFAULT_COLUMNS = [
     "世界经济",
