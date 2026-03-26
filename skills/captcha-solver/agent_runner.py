@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import base64
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Callable
 
 import requests
@@ -204,13 +205,31 @@ def _build_config_from_args(args: argparse.Namespace) -> CaptchaConfig:
     return cfg
 
 
-def run_once(cfg: CaptchaConfig, headless: bool, dry_run: bool) -> RunResult:
+def run_once(
+    cfg: CaptchaConfig,
+    headless: bool,
+    dry_run: bool,
+    storage_state_path: str | None = None,
+    save_storage_state_path: str | None = None,
+    login_wait_ms: int = 0,
+) -> RunResult:
     ocr_endpoint = build_solve_endpoint(cfg)
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=headless)
-        page = browser.new_page()
+        context_kwargs = {}
+        if storage_state_path and Path(storage_state_path).exists():
+            context_kwargs["storage_state"] = storage_state_path
+            print(f"loaded storage state: {storage_state_path}", flush=True)
+        context = browser.new_context(**context_kwargs)
+        page = context.new_page()
         page.goto(cfg.url, wait_until="domcontentloaded")
+        if login_wait_ms > 0:
+            print(
+                f"waiting {login_wait_ms}ms for manual login/session setup...",
+                flush=True,
+            )
+            page.wait_for_timeout(login_wait_ms)
         cfg = _auto_detect_selectors(page, cfg)
 
         last_text = ""
@@ -247,6 +266,10 @@ def run_once(cfg: CaptchaConfig, headless: bool, dry_run: bool) -> RunResult:
 
                 page.fill(cfg.selectors.captcha_input, text)
                 if dry_run:
+                    if save_storage_state_path:
+                        context.storage_state(path=save_storage_state_path)
+                        print(f"saved storage state: {save_storage_state_path}", flush=True)
+                    context.close()
                     browser.close()
                     return RunResult(success=True, attempts=attempt, last_text=text)
 
@@ -259,6 +282,10 @@ def run_once(cfg: CaptchaConfig, headless: bool, dry_run: bool) -> RunResult:
                 still_on_challenge = _is_probably_still_on_challenge(page, cfg, url_before_submit)
 
                 if not explicit_error and not text_error and not still_on_challenge:
+                    if save_storage_state_path:
+                        context.storage_state(path=save_storage_state_path)
+                        print(f"saved storage state: {save_storage_state_path}", flush=True)
+                    context.close()
                     browser.close()
                     return RunResult(success=True, attempts=attempt, last_text=text)
 
@@ -271,9 +298,17 @@ def run_once(cfg: CaptchaConfig, headless: bool, dry_run: bool) -> RunResult:
                     page.click(cfg.selectors.refresh_button)
                     page.wait_for_timeout(cfg.runtime.wait_after_refresh_ms)
 
+            if save_storage_state_path:
+                context.storage_state(path=save_storage_state_path)
+                print(f"saved storage state: {save_storage_state_path}", flush=True)
+            context.close()
             browser.close()
             return RunResult(success=False, attempts=cfg.runtime.max_attempts, last_text=last_text)
         except PlaywrightTimeoutError:
+            if save_storage_state_path:
+                context.storage_state(path=save_storage_state_path)
+                print(f"saved storage state: {save_storage_state_path}", flush=True)
+            context.close()
             browser.close()
             return RunResult(success=False, attempts=0, last_text=last_text)
 
@@ -296,6 +331,17 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--max-attempts", type=int, default=5, help="Max retry attempts")
     parser.add_argument("--expected-length", type=int, help="Expected captcha text length")
+    parser.add_argument("--storage-state", help="Path to Playwright storage state JSON")
+    parser.add_argument(
+        "--save-storage-state",
+        help="Path to save Playwright storage state JSON after run",
+    )
+    parser.add_argument(
+        "--login-wait-ms",
+        type=int,
+        default=0,
+        help="Wait before captcha flow for manual login/session setup",
+    )
     parser.add_argument("--wait-after-submit-ms", type=int, default=1000)
     parser.add_argument("--wait-after-refresh-ms", type=int, default=600)
     parser.add_argument("--headless", action="store_true", help="Run browser headless")
@@ -306,7 +352,14 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     cfg = _build_config_from_args(args)
-    result = run_once(cfg=cfg, headless=args.headless, dry_run=args.dry_run)
+    result = run_once(
+        cfg=cfg,
+        headless=args.headless,
+        dry_run=args.dry_run,
+        storage_state_path=args.storage_state,
+        save_storage_state_path=args.save_storage_state,
+        login_wait_ms=args.login_wait_ms,
+    )
     print(
         f"success={result.success} attempts={result.attempts} last_text={result.last_text}",
         flush=True,

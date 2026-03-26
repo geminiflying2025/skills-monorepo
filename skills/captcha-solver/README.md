@@ -58,6 +58,28 @@ python run.py \
 
 For 4-digit CAPTCHA pages, you can enforce expected length by config (`runtime.expected_length: 4`).
 
+## Reuse Login Session
+
+If target page requires login, save and reuse Playwright storage state:
+
+First run (manual login window + save state):
+
+```bash
+python run.py \
+  --url "https://example.com/protected-page" \
+  --login-wait-ms 120000 \
+  --save-storage-state ".state.json" \
+  --dry-run
+```
+
+Then reuse the same login state:
+
+```bash
+python run.py \
+  --url "https://example.com/protected-page" \
+  --storage-state ".state.json"
+```
+
 ## Debug Options
 
 ```bash
