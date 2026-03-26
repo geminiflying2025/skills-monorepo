@@ -73,6 +73,12 @@ def parse_args() -> argparse.Namespace:
     )
     p.add_argument("--top", type=int, default=10, help="max downloadable reports")
     p.add_argument("--page-size", type=int, default=40, help="search page size")
+    p.add_argument(
+        "--min-pages",
+        type=int,
+        default=None,
+        help="only include reports whose page count is at least this value",
+    )
 
     p.add_argument("--start", default="", help="start date YYYY-MM-DD")
     p.add_argument("--end", default="", help="end date YYYY-MM-DD")
@@ -89,6 +95,11 @@ def parse_args() -> argparse.Namespace:
         help="playwright storageState json path",
     )
     p.add_argument("--output-dir", default="", help="output directory")
+    p.add_argument(
+        "--retry-failed-manifest",
+        default="",
+        help="retry only failed rows from an existing download_manifest.json",
+    )
     p.add_argument(
         "--force-download",
         action="store_true",
@@ -187,6 +198,14 @@ def sync_output_dir(output_dir: Path, sync_dir: Path) -> tuple[bool, str]:
         else:
             shutil.copy2(source, target)
     return True, ""
+
+
+def load_failed_manifest_items(manifest_path: Path) -> list[dict[str, Any]]:
+    data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if not isinstance(data, list):
+        raise RuntimeError(f"unexpected manifest format: {manifest_path}")
+    failed = [item for item in data if isinstance(item, dict) and not item.get("ok", False)]
+    return failed
 
 
 def load_state_session(state_file: Path) -> requests.Session:
@@ -340,6 +359,7 @@ def build_search_params(
     page_size: int,
     column_ids: list[int],
     doctype_ids: list[int],
+    min_pages: int | None = None,
 ) -> dict[str, Any]:
     return {
         "starttime": start,
@@ -355,7 +375,7 @@ def build_search_params(
         "stkcodes": "",
         "analystIds": "",
         "searchSaveId": "",
-        "pageNumStart": "",
+        "pageNumStart": str(min_pages) if min_pages is not None else "",
         "mystock": "",
         "sortByPagenum": "false",
         "sortByHot": "false",
@@ -383,13 +403,23 @@ def search_reports(
     top: int,
     column_ids: list[int],
     doctype_ids: list[int],
+    min_pages: int | None = None,
 ) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     seen_obj_ids: set[int] = set()
 
     page = 1
     while len(out) < top and page <= 300:
-        params = build_search_params(keyword, start, end, page, page_size, column_ids, doctype_ids)
+        params = build_search_params(
+            keyword,
+            start,
+            end,
+            page,
+            page_size,
+            column_ids,
+            doctype_ids,
+            min_pages=min_pages,
+        )
         r = state_get(session, SEARCH_URL, params=params, timeout=60)
         r.raise_for_status()
         data = r.json()
@@ -484,6 +514,49 @@ def run_captcha_command(command: str, captcha_url: str, download_url: str, downl
     return int(proc.returncode)
 
 
+def retry_manifest_row(
+    row: dict[str, Any],
+    session: requests.Session,
+    state_file: Path,
+    output_dir: Path,
+    captcha_command: str,
+) -> tuple[dict[str, Any], bool, bool, str | None]:
+    updated = dict(row)
+    out_path = output_dir / str(updated["file"])
+    download_url = str(updated["url"])
+
+    if out_path.exists():
+        updated["ok"] = True
+        updated["status"] = 208
+        updated["error"] = "skipped_existing"
+        return updated, False, True, None
+
+    ok, status, err = download_file(session, download_url, out_path)
+    captcha_url: str | None = None
+    if (not ok) and err.startswith("captcha_required:"):
+        captcha_url = err.split(":", 1)[1]
+        if captcha_command:
+            exit_code = run_captcha_command(
+                captcha_command,
+                captcha_url,
+                download_url,
+                out_path,
+            )
+            if exit_code == 0 and out_path.exists():
+                ok, status, err = True, 200, ""
+            elif exit_code == 0:
+                session = load_state_session(state_file)
+                ok, status, err = download_file(session, download_url, out_path)
+
+    if ok and not out_path.exists():
+        ok, status, err = False, 0, "post_check_missing_file"
+
+    updated["ok"] = ok
+    updated["status"] = status
+    updated["error"] = err
+    return updated, ok, False, captcha_url
+
+
 def main() -> int:
     args = parse_args()
     state_file = Path(args.state_file)
@@ -492,23 +565,31 @@ def main() -> int:
 
     columns_input = collect_column_filters(args)
     output_dir = resolve_output_dir(args, start, end)
+    retry_manifest_path = Path(args.retry_failed_manifest) if args.retry_failed_manifest else None
+    if retry_manifest_path is not None:
+        output_dir = retry_manifest_path.parent
     output_dir.mkdir(parents=True, exist_ok=True)
 
     session = load_state_session(state_file)
-    columns_data = fetch_columns(session)
-    name_index = build_name_index(columns_data)
-    resolved = resolve_filters(columns_input, name_index)
+    if retry_manifest_path is not None:
+        resolved = ResolvedFilters(column_ids=[], doctype_ids=[], found_names=[], not_found_names=[])
+        results = load_failed_manifest_items(retry_manifest_path)
+    else:
+        columns_data = fetch_columns(session)
+        name_index = build_name_index(columns_data)
+        resolved = resolve_filters(columns_input, name_index)
 
-    results = search_reports(
-        session=session,
-        keyword=args.keyword,
-        start=start,
-        end=end,
-        page_size=args.page_size,
-        top=args.top,
-        column_ids=resolved.column_ids,
-        doctype_ids=resolved.doctype_ids,
-    )
+        results = search_reports(
+            session=session,
+            keyword=args.keyword,
+            start=start,
+            end=end,
+            page_size=args.page_size,
+            top=args.top,
+            column_ids=resolved.column_ids,
+            doctype_ids=resolved.doctype_ids,
+            min_pages=args.min_pages,
+        )
 
     manifest: list[dict[str, Any]] = []
     skipped_existing = 0
@@ -516,55 +597,77 @@ def main() -> int:
     captcha_required_count = 0
     captcha_urls: list[str] = []
     for i, item in enumerate(results, start=1):
-        ext = item["filetype"] or "pdf"
-        file_name = f"{i:02d}_{sanitize_filename(item['title'])}_{item['objid']}.{ext}"
-        row = {
-            "index": i,
-            "report_id": item["report_id"],
-            "objid": item["objid"],
-            "title": item["title"],
-            "file": file_name,
-            "url": item["download_url"],
-            "ok": False,
-            "status": 0,
-            "error": "",
-        }
+        if retry_manifest_path is not None:
+            row = dict(item)
+            row.setdefault("error", "")
+            row.setdefault("status", 0)
+            row.setdefault("ok", False)
+        else:
+            ext = item["filetype"] or "pdf"
+            file_name = f"{i:02d}_{sanitize_filename(item['title'])}_{item['objid']}.{ext}"
+            row = {
+                "index": i,
+                "report_id": item["report_id"],
+                "objid": item["objid"],
+                "title": item["title"],
+                "file": file_name,
+                "url": item["download_url"],
+                "ok": False,
+                "status": 0,
+                "error": "",
+            }
 
         if args.dry_run:
             row["ok"] = True
             row["status"] = 0
         else:
-            existing = None if args.force_download else find_existing_by_objid(output_dir, item["objid"])
-            if existing is not None:
-                row["ok"] = True
-                row["status"] = 208
-                row["error"] = "skipped_existing"
-                row["file"] = existing.name
-                skipped_existing += 1
-            else:
-                ok, status, err = download_file(session, item["download_url"], output_dir / file_name)
-                if (not ok) and err.startswith("captcha_required:"):
-                    captcha_required_count += 1
-                    captcha_url = err.split(":", 1)[1]
-                    captcha_urls.append(captcha_url)
-                    if args.captcha_command:
-                        exit_code = run_captcha_command(
-                            args.captcha_command,
-                            captcha_url,
-                            item["download_url"],
-                            output_dir / file_name,
-                        )
-                        if exit_code == 0:
-                            if (output_dir / file_name).exists():
-                                ok, status, err = True, 200, ""
-                            else:
-                                session = load_state_session(state_file)
-                                ok, status, err = download_file(session, item["download_url"], output_dir / file_name)
-                row["ok"] = ok
-                row["status"] = status
-                row["error"] = err
-                if ok:
+            if retry_manifest_path is not None:
+                row, ok, was_skip, captcha_url = retry_manifest_row(
+                    row,
+                    session,
+                    state_file,
+                    output_dir,
+                    args.captcha_command,
+                )
+                if was_skip:
+                    skipped_existing += 1
+                elif ok:
                     downloaded_new += 1
+                if captcha_url:
+                    captcha_required_count += 1
+                    captcha_urls.append(captcha_url)
+            else:
+                existing = None if args.force_download else find_existing_by_objid(output_dir, item["objid"])
+                if existing is not None:
+                    row["ok"] = True
+                    row["status"] = 208
+                    row["error"] = "skipped_existing"
+                    row["file"] = existing.name
+                    skipped_existing += 1
+                else:
+                    ok, status, err = download_file(session, item["download_url"], output_dir / file_name)
+                    if (not ok) and err.startswith("captcha_required:"):
+                        captcha_required_count += 1
+                        captcha_url = err.split(":", 1)[1]
+                        captcha_urls.append(captcha_url)
+                        if args.captcha_command:
+                            exit_code = run_captcha_command(
+                                args.captcha_command,
+                                captcha_url,
+                                item["download_url"],
+                                output_dir / file_name,
+                            )
+                            if exit_code == 0:
+                                if (output_dir / file_name).exists():
+                                    ok, status, err = True, 200, ""
+                                else:
+                                    session = load_state_session(state_file)
+                                    ok, status, err = download_file(session, item["download_url"], output_dir / file_name)
+                    row["ok"] = ok
+                    row["status"] = status
+                    row["error"] = err
+                    if ok:
+                        downloaded_new += 1
         manifest.append(row)
 
     json_path = output_dir / "download_manifest.json"

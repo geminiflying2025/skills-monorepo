@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 import importlib.util
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -49,6 +51,63 @@ class ResolveOutputDirTests(unittest.TestCase):
             sync_dir,
             Path("/Volumes/资产-投资研究/研报下载/kanyanbao-2026-03-20_to_2026-03-26"),
         )
+
+    def test_load_failed_manifest_items_returns_only_failed_rows(self):
+        mod = load_module()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manifest_path = Path(tmpdir) / "download_manifest.json"
+            manifest_path.write_text(
+                json.dumps(
+                    [
+                        {
+                            "index": 1,
+                            "report_id": 11,
+                            "objid": 101,
+                            "title": "ok row",
+                            "file": "01_ok_101.pdf",
+                            "url": "https://example.com/ok",
+                            "ok": True,
+                            "status": 200,
+                            "error": "",
+                        },
+                        {
+                            "index": 2,
+                            "report_id": 22,
+                            "objid": 202,
+                            "title": "failed row",
+                            "file": "02_failed_202.pdf",
+                            "url": "https://example.com/fail",
+                            "ok": False,
+                            "status": 200,
+                            "error": "captcha_required:https://example.com/captcha",
+                        },
+                    ],
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            items = mod.load_failed_manifest_items(manifest_path)
+
+            self.assertEqual(len(items), 1)
+            self.assertEqual(items[0]["objid"], 202)
+            self.assertEqual(items[0]["file"], "02_failed_202.pdf")
+
+    def test_build_search_params_supports_min_pages(self):
+        mod = load_module()
+
+        params = mod.build_search_params(
+            keyword="黄金",
+            start="2026-03-20",
+            end="2026-03-26",
+            page=1,
+            page_size=40,
+            column_ids=[5],
+            doctype_ids=[12],
+            min_pages=5,
+        )
+
+        self.assertEqual(params["pageNumStart"], "5")
 
 
 if __name__ == "__main__":
