@@ -1,6 +1,7 @@
 from config import CaptchaConfig, RuntimeConfig, Selectors
 from agent_runner import (
     DEFAULT_KANYANBAO_STORAGE_STATE,
+    _is_submission_success,
     build_solve_endpoint,
     pick_first_candidate,
     resolve_storage_state_path,
@@ -37,4 +38,13 @@ def test_resolve_storage_state_path_uses_kanyanbao_default() -> None:
     assert (
         resolve_storage_state_path("https://www.kanyanbao.com/foo", None)
         == DEFAULT_KANYANBAO_STORAGE_STATE
+    )
+
+
+def test_submission_success_when_download_started_even_if_page_unchanged() -> None:
+    assert _is_submission_success(
+        download_started=True,
+        explicit_error=False,
+        text_error=False,
+        still_on_challenge=True,
     )

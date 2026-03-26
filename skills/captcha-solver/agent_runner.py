@@ -111,6 +111,17 @@ def _is_probably_still_on_challenge(page, cfg: CaptchaConfig, url_before_submit:
     return same_url and input_visible
 
 
+def _is_submission_success(
+    download_started: bool,
+    explicit_error: bool,
+    text_error: bool,
+    still_on_challenge: bool,
+) -> bool:
+    if download_started:
+        return True
+    return not explicit_error and not text_error and not still_on_challenge
+
+
 def pick_first_candidate(
     candidates: list[str],
     exists_fn: Callable[[str], bool],
@@ -237,7 +248,7 @@ def run_once(
             print(f"loaded storage state: {storage_state_path}", flush=True)
         elif storage_state_path:
             print(f"storage state not found, continuing without it: {storage_state_path}", flush=True)
-        context = browser.new_context(**context_kwargs)
+        context = browser.new_context(accept_downloads=True, **context_kwargs)
         page = context.new_page()
         page.goto(cfg.url, wait_until="domcontentloaded")
         if login_wait_ms > 0:
@@ -290,14 +301,29 @@ def run_once(
                     return RunResult(success=True, attempts=attempt, last_text=text)
 
                 url_before_submit = page.url
-                page.click(cfg.selectors.submit_button)
-                page.wait_for_timeout(cfg.runtime.wait_after_submit_ms)
+                download_started = False
+                try:
+                    with page.expect_download(timeout=cfg.runtime.wait_after_submit_ms) as download_info:
+                        page.click(cfg.selectors.submit_button)
+                    download = download_info.value
+                    download_started = True
+                    print(
+                        f"download started: {download.suggested_filename}",
+                        flush=True,
+                    )
+                except PlaywrightTimeoutError:
+                    page.wait_for_timeout(cfg.runtime.wait_after_submit_ms)
 
                 explicit_error = _is_error_visible(page, cfg.selectors.error_message)
                 text_error = _contains_failure_hint_text(page)
                 still_on_challenge = _is_probably_still_on_challenge(page, cfg, url_before_submit)
 
-                if not explicit_error and not text_error and not still_on_challenge:
+                if _is_submission_success(
+                    download_started=download_started,
+                    explicit_error=explicit_error,
+                    text_error=text_error,
+                    still_on_challenge=still_on_challenge,
+                ):
                     if save_storage_state_path:
                         context.storage_state(path=save_storage_state_path)
                         print(f"saved storage state: {save_storage_state_path}", flush=True)
@@ -307,7 +333,8 @@ def run_once(
 
                 print(
                     "submit appears failed, retrying: "
-                    f"explicit_error={explicit_error} text_error={text_error} still_on_challenge={still_on_challenge}",
+                    f"download_started={download_started} explicit_error={explicit_error} "
+                    f"text_error={text_error} still_on_challenge={still_on_challenge}",
                     flush=True,
                 )
                 if cfg.selectors.refresh_button:
