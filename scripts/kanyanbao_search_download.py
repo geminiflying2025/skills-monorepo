@@ -95,8 +95,16 @@ def collect_column_filters(args: argparse.Namespace) -> list[str]:
     for part in args.column:
         out.extend(split_list(part))
     out.extend(split_list(args.columns))
+
+    # No filters passed means "all columns" (no doccolumn/doctypes constraint).
     if not out:
-        return DEFAULT_COLUMNS.copy()
+        return []
+
+    # Explicit default keyword enables the preset 10-column bundle.
+    lowered = [x.lower() for x in out]
+    if "default" in lowered or "defaut" in lowered:
+        out = [x for x in out if x.lower() not in {"default", "defaut"}]
+        out.extend(DEFAULT_COLUMNS)
     # keep order, remove duplicates
     uniq: list[str] = []
     for x in out:
