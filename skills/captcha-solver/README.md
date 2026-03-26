@@ -80,6 +80,8 @@ python run.py \
   --storage-state ".state.json"
 ```
 
+For `kanyanbao.com`, the runner now auto-loads `/tmp/kanyanbao-state-now.json` when present, so you usually do not need to pass `--storage-state`.
+
 ## Debug Options
 
 ```bash

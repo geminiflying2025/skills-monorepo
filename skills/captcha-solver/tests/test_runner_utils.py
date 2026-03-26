@@ -1,5 +1,10 @@
 from config import CaptchaConfig, RuntimeConfig, Selectors
-from agent_runner import build_solve_endpoint, pick_first_candidate
+from agent_runner import (
+    DEFAULT_KANYANBAO_STORAGE_STATE,
+    build_solve_endpoint,
+    pick_first_candidate,
+    resolve_storage_state_path,
+)
 
 
 def test_build_solve_endpoint_uses_config_base_url() -> None:
@@ -19,3 +24,17 @@ def test_pick_first_candidate_returns_first_match() -> None:
     candidates = ["a", "b", "c"]
     matched = pick_first_candidate(candidates, lambda x: x in {"b", "c"})
     assert matched == "b"
+
+
+def test_resolve_storage_state_path_prefers_explicit_value() -> None:
+    assert (
+        resolve_storage_state_path("https://www.kanyanbao.com/foo", "/tmp/custom.json")
+        == "/tmp/custom.json"
+    )
+
+
+def test_resolve_storage_state_path_uses_kanyanbao_default() -> None:
+    assert (
+        resolve_storage_state_path("https://www.kanyanbao.com/foo", None)
+        == DEFAULT_KANYANBAO_STORAGE_STATE
+    )

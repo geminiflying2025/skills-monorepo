@@ -5,6 +5,7 @@ import base64
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
+from urllib.parse import urlparse
 
 import requests
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
@@ -47,9 +48,21 @@ DEFAULT_SUBMIT_BUTTON_CANDIDATES = [
     "button:has-text('确定')",
 ]
 
+DEFAULT_KANYANBAO_STORAGE_STATE = "/tmp/kanyanbao-state-now.json"
+
 
 def build_solve_endpoint(cfg: CaptchaConfig) -> str:
     return cfg.runtime.ocr_base_url.rstrip("/") + "/solve"
+
+
+def resolve_storage_state_path(url: str, storage_state_path: str | None) -> str | None:
+    if storage_state_path:
+        return storage_state_path
+
+    hostname = (urlparse(url).hostname or "").lower()
+    if hostname.endswith("kanyanbao.com"):
+        return DEFAULT_KANYANBAO_STORAGE_STATE
+    return None
 
 
 def call_ocr(ocr_endpoint: str, image_bytes: bytes, timeout_s: float = 8.0) -> str:
@@ -214,6 +227,7 @@ def run_once(
     login_wait_ms: int = 0,
 ) -> RunResult:
     ocr_endpoint = build_solve_endpoint(cfg)
+    storage_state_path = resolve_storage_state_path(cfg.url, storage_state_path)
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=headless)
@@ -221,6 +235,8 @@ def run_once(
         if storage_state_path and Path(storage_state_path).exists():
             context_kwargs["storage_state"] = storage_state_path
             print(f"loaded storage state: {storage_state_path}", flush=True)
+        elif storage_state_path:
+            print(f"storage state not found, continuing without it: {storage_state_path}", flush=True)
         context = browser.new_context(**context_kwargs)
         page = context.new_page()
         page.goto(cfg.url, wait_until="domcontentloaded")
