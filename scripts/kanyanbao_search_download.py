@@ -451,7 +451,7 @@ def run_captcha_command(command: str, captcha_url: str, download_url: str, downl
     env = os.environ.copy()
     env["CAPTCHA_URL"] = captcha_url
     env["DOWNLOAD_URL"] = download_url
-    env["DOWNLOAD_OUTPUT_PATH"] = str(download_output_path)
+    env["DOWNLOAD_OUTPUT_PATH"] = str(download_output_path.resolve())
     proc = subprocess.run(command, shell=True, env=env, check=False)
     return int(proc.returncode)
 
