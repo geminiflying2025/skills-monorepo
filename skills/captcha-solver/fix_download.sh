@@ -8,7 +8,7 @@ cd "$SCRIPT_DIR"
 source .venv/bin/activate
 
 BASE_URL="https://www.kanyanbao.com/new/view/report/download_check.jsp"
-REDIRECT_PATH="${1:-}"
+REDIRECT_PATH="${1:-${CAPTCHA_URL:-}}"
 
 TARGET_URL="$BASE_URL?redirect_url="
 if [[ -n "$REDIRECT_PATH" ]]; then
@@ -19,8 +19,15 @@ if [[ -n "$REDIRECT_PATH" ]]; then
   fi
 fi
 
+EXTRA_ARGS=()
+if [[ -n "${DOWNLOAD_OUTPUT_PATH:-}" ]]; then
+  EXTRA_ARGS+=(--download-output-path "$DOWNLOAD_OUTPUT_PATH")
+fi
+
 python run.py \
   --url "$TARGET_URL" \
+  --save-storage-state "/tmp/kanyanbao-state-now.json" \
+  "${EXTRA_ARGS[@]}" \
   --captcha-image "img#qrcode" \
   --captcha-input "input#j_captcha_response" \
   --submit-button "a#form_post_button" \

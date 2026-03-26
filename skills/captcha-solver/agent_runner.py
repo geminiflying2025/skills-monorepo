@@ -248,6 +248,7 @@ def run_once(
     dry_run: bool,
     storage_state_path: str | None = None,
     save_storage_state_path: str | None = None,
+    download_output_path: str | None = None,
     login_wait_ms: int = 0,
 ) -> RunResult:
     ocr_endpoint = build_solve_endpoint(cfg)
@@ -335,6 +336,11 @@ def run_once(
                         f"download started: {download.suggested_filename}",
                         flush=True,
                     )
+                    if download_output_path:
+                        target_path = Path(download_output_path)
+                        target_path.parent.mkdir(parents=True, exist_ok=True)
+                        download.save_as(str(target_path))
+                        print(f"saved download to: {target_path}", flush=True)
                 except PlaywrightTimeoutError:
                     page.wait_for_timeout(cfg.runtime.wait_after_submit_ms)
 
@@ -409,6 +415,10 @@ def parse_args() -> argparse.Namespace:
         help="Path to save Playwright storage state JSON after run",
     )
     parser.add_argument(
+        "--download-output-path",
+        help="Path to save the downloaded file when a submission triggers a browser download",
+    )
+    parser.add_argument(
         "--login-wait-ms",
         type=int,
         default=0,
@@ -430,6 +440,7 @@ def main() -> int:
         dry_run=args.dry_run,
         storage_state_path=args.storage_state,
         save_storage_state_path=args.save_storage_state,
+        download_output_path=args.download_output_path,
         login_wait_ms=args.login_wait_ms,
     )
     print(

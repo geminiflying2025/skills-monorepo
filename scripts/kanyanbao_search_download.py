@@ -447,10 +447,11 @@ def find_existing_by_objid(output_dir: Path, objid: int) -> Path | None:
     return matches[0] if matches else None
 
 
-def run_captcha_command(command: str, captcha_url: str, download_url: str) -> int:
+def run_captcha_command(command: str, captcha_url: str, download_url: str, download_output_path: Path) -> int:
     env = os.environ.copy()
     env["CAPTCHA_URL"] = captcha_url
     env["DOWNLOAD_URL"] = download_url
+    env["DOWNLOAD_OUTPUT_PATH"] = str(download_output_path)
     proc = subprocess.run(command, shell=True, env=env, check=False)
     return int(proc.returncode)
 
@@ -523,10 +524,18 @@ def main() -> int:
                     captcha_url = err.split(":", 1)[1]
                     captcha_urls.append(captcha_url)
                     if args.captcha_command:
-                        exit_code = run_captcha_command(args.captcha_command, captcha_url, item["download_url"])
+                        exit_code = run_captcha_command(
+                            args.captcha_command,
+                            captcha_url,
+                            item["download_url"],
+                            output_dir / file_name,
+                        )
                         if exit_code == 0:
-                            session = load_state_session(state_file)
-                            ok, status, err = download_file(session, item["download_url"], output_dir / file_name)
+                            if (output_dir / file_name).exists():
+                                ok, status, err = True, 200, ""
+                            else:
+                                session = load_state_session(state_file)
+                                ok, status, err = download_file(session, item["download_url"], output_dir / file_name)
                 row["ok"] = ok
                 row["status"] = status
                 row["error"] = err
