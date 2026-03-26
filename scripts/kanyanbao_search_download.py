@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 from urllib.parse import unquote
 
 import requests
@@ -166,13 +167,52 @@ def load_state_session(state_file: Path) -> requests.Session:
         {
             "Referer": f"{BASE}/newreport/newReportSearch.htm",
             "User-Agent": "Mozilla/5.0",
+            "Accept": "application/json, text/javascript, */*; q=0.01",
+            "X-Requested-With": "XMLHttpRequest",
         }
     )
+    # Keep original cookie records so we can reproduce browser-like cookie selection by path.
+    setattr(sess, "_kanyanbao_state_cookies", obj.get("cookies", []))
     return sess
 
 
+def build_cookie_header(cookies: list[dict[str, Any]], url: str) -> str:
+    parsed = urlparse(url)
+    req_host = parsed.hostname or ""
+    req_path = parsed.path or "/"
+
+    chosen: dict[str, tuple[str, str]] = {}
+    for c in cookies:
+        domain = str(c.get("domain") or "")
+        path = str(c.get("path") or "/")
+        name = str(c.get("name") or "")
+        value = str(c.get("value") or "")
+        if not name:
+            continue
+
+        domain_ok = req_host == domain.lstrip(".") or req_host.endswith(domain)
+        path_ok = req_path.startswith(path)
+        if not (domain_ok and path_ok):
+            continue
+
+        current = chosen.get(name)
+        if current is None or len(path) >= len(current[0]):
+            chosen[name] = (path, value)
+
+    return "; ".join(f"{name}={value}" for name, (_path, value) in chosen.items())
+
+
+def state_get(session: requests.Session, url: str, **kwargs: Any) -> requests.Response:
+    headers = dict(kwargs.pop("headers", {}) or {})
+    state_cookies = getattr(session, "_kanyanbao_state_cookies", [])
+    cookie_header = build_cookie_header(state_cookies, url)
+    if cookie_header:
+        headers["Cookie"] = cookie_header
+    return session.get(url, headers=headers, **kwargs)
+
+
 def fetch_columns(session: requests.Session) -> list[dict[str, Any]]:
-    r = session.get(COLUMNS_URL, timeout=60)
+    r = state_get(session, COLUMNS_URL, timeout=60)
     r.raise_for_status()
     data = r.json()
     if isinstance(data, dict) and data.get("check_session_status") == 0:
@@ -293,7 +333,7 @@ def search_reports(
     page = 1
     while len(out) < top and page <= 300:
         params = build_search_params(keyword, start, end, page, page_size, column_ids, doctype_ids)
-        r = session.get(SEARCH_URL, params=params, timeout=60)
+        r = state_get(session, SEARCH_URL, params=params, timeout=60)
         r.raise_for_status()
         data = r.json()
 
@@ -349,7 +389,7 @@ def search_reports(
 
 def download_file(session: requests.Session, url: str, out_path: Path) -> tuple[bool, int, str]:
     try:
-        r = session.get(url, timeout=120)
+        r = state_get(session, url, timeout=120, headers={"Accept": "*/*", "X-Requested-With": ""})
         ct = (r.headers.get("content-type") or "").lower()
         is_file = (
             r.status_code == 200
