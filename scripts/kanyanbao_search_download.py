@@ -361,7 +361,7 @@ def search_reports(
 
             title = re.sub(r"<[^>]+>", "", str(rp.get("title", ""))).strip()
             filetype = str(first.get("FILETYPE") or "pdf").lower()
-            if filetype not in {"pdf", "doc", "docx"}:
+            if filetype not in {"pdf", "doc", "docx", "xls", "xlsx"}:
                 filetype = "pdf"
 
             out.append(
@@ -394,7 +394,13 @@ def download_file(session: requests.Session, url: str, out_path: Path) -> tuple[
         is_file = (
             r.status_code == 200
             and len(r.content) > 0
-            and ("pdf" in ct or "word" in ct or "octet-stream" in ct)
+            and (
+                "pdf" in ct
+                or "word" in ct
+                or "octet-stream" in ct
+                or "spreadsheetml" in ct
+                or "ms-excel" in ct
+            )
         )
         if not is_file:
             return False, r.status_code, f"non_file:{ct[:80]}"
