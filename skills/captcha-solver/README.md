@@ -38,6 +38,23 @@ cd skills/captcha-solver
 python run.py --config config.example.yaml
 ```
 
+Direct URL mode (auto-detect selectors):
+
+```bash
+cd skills/captcha-solver
+python run.py --url "https://your-own-site.example.com/login"
+```
+
+If auto-detection is not accurate, pass selector overrides:
+
+```bash
+python run.py \
+  --url "https://your-own-site.example.com/login" \
+  --captcha-image "img#captchaImg" \
+  --captcha-input "input#captcha" \
+  --submit-button "button[type='submit']"
+```
+
 ## Debug Options
 
 ```bash
