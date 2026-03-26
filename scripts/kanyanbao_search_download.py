@@ -79,6 +79,11 @@ def parse_args() -> argparse.Namespace:
         help="playwright storageState json path",
     )
     p.add_argument("--output-dir", default="", help="output directory")
+    p.add_argument(
+        "--force-download",
+        action="store_true",
+        help="force redownload even if same objid file already exists in output dir",
+    )
     p.add_argument("--dry-run", action="store_true", help="only list results without downloading")
     return p.parse_args()
 
@@ -417,7 +422,7 @@ def main() -> int:
             row["ok"] = True
             row["status"] = 0
         else:
-            existing = find_existing_by_objid(output_dir, item["objid"])
+            existing = None if args.force_download else find_existing_by_objid(output_dir, item["objid"])
             if existing is not None:
                 row["ok"] = True
                 row["status"] = 208
