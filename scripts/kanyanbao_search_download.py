@@ -5,10 +5,13 @@ import argparse
 import csv
 import json
 import re
+import subprocess
 from dataclasses import dataclass
 from datetime import date, timedelta
+import os
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 from urllib.parse import urlparse
 from urllib.parse import unquote
 
@@ -84,6 +87,11 @@ def parse_args() -> argparse.Namespace:
         "--force-download",
         action="store_true",
         help="force redownload even if same objid file already exists in output dir",
+    )
+    p.add_argument(
+        "--captcha-command",
+        default="",
+        help="command to run when a captcha page is detected; receives CAPTCHA_URL and DOWNLOAD_URL in env",
     )
     p.add_argument("--dry-run", action="store_true", help="only list results without downloading")
     return p.parse_args()
@@ -209,6 +217,24 @@ def state_get(session: requests.Session, url: str, **kwargs: Any) -> requests.Re
     if cookie_header:
         headers["Cookie"] = cookie_header
     return session.get(url, headers=headers, **kwargs)
+
+
+def build_captcha_url(download_url: str) -> str:
+    parsed = urlparse(download_url)
+    redirect_url = quote(parsed.path + (f"?{parsed.query}" if parsed.query else ""), safe="")
+    return f"{BASE}/new/view/report/download_check.jsp?redirect_url={redirect_url}"
+
+
+def is_captcha_page(response: requests.Response) -> bool:
+    ct = (response.headers.get("content-type") or "").lower()
+    if "text/html" not in ct:
+        return False
+    text = response.text[:5000]
+    return (
+        "报告下载验证" in text
+        or "图形验证码" in text
+        or "download_check.jsp" in text
+    )
 
 
 def fetch_columns(session: requests.Session) -> list[dict[str, Any]]:
@@ -390,6 +416,8 @@ def search_reports(
 def download_file(session: requests.Session, url: str, out_path: Path) -> tuple[bool, int, str]:
     try:
         r = state_get(session, url, timeout=120, headers={"Accept": "*/*", "X-Requested-With": ""})
+        if is_captcha_page(r):
+            return False, r.status_code, f"captcha_required:{build_captcha_url(url)}"
         ct = (r.headers.get("content-type") or "").lower()
         is_file = (
             r.status_code == 200
@@ -414,6 +442,14 @@ def find_existing_by_objid(output_dir: Path, objid: int) -> Path | None:
     # Existing files follow: "<index>_<title>_<objid>.<ext>"
     matches = list(output_dir.glob(f"*_{objid}.*"))
     return matches[0] if matches else None
+
+
+def run_captcha_command(command: str, captcha_url: str, download_url: str) -> int:
+    env = os.environ.copy()
+    env["CAPTCHA_URL"] = captcha_url
+    env["DOWNLOAD_URL"] = download_url
+    proc = subprocess.run(command, shell=True, env=env, check=False)
+    return int(proc.returncode)
 
 
 def main() -> int:
@@ -449,6 +485,8 @@ def main() -> int:
     manifest: list[dict[str, Any]] = []
     skipped_existing = 0
     downloaded_new = 0
+    captcha_required_count = 0
+    captcha_urls: list[str] = []
     for i, item in enumerate(results, start=1):
         ext = item["filetype"] or "pdf"
         file_name = f"{i:02d}_{sanitize_filename(item['title'])}_{item['objid']}.{ext}"
@@ -477,6 +515,15 @@ def main() -> int:
                 skipped_existing += 1
             else:
                 ok, status, err = download_file(session, item["download_url"], output_dir / file_name)
+                if (not ok) and err.startswith("captcha_required:"):
+                    captcha_required_count += 1
+                    captcha_url = err.split(":", 1)[1]
+                    captcha_urls.append(captcha_url)
+                    if args.captcha_command:
+                        exit_code = run_captcha_command(args.captcha_command, captcha_url, item["download_url"])
+                        if exit_code == 0:
+                            session = load_state_session(state_file)
+                            ok, status, err = download_file(session, item["download_url"], output_dir / file_name)
                 row["ok"] = ok
                 row["status"] = status
                 row["error"] = err
@@ -512,6 +559,8 @@ def main() -> int:
         "downloaded_new": downloaded_new,
         "skipped_existing": skipped_existing,
         "download_failed": sum(1 for x in manifest if not x["ok"]),
+        "captcha_required_count": captcha_required_count,
+        "captcha_urls": captcha_urls,
         "output_dir": str(output_dir),
         "manifest_json": str(json_path),
         "manifest_csv": str(csv_path),
