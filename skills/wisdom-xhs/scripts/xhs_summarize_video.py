@@ -313,6 +313,8 @@ def dispatch_non_video_summary(feed_id: str, xsec_token: str, output_dir: Path) 
 
 
 def download_file(url: str, path: Path) -> Path:
+    if path.exists() and path.stat().st_size > 0:
+        return path
     path.parent.mkdir(parents=True, exist_ok=True)
     with requests.get(url, stream=True, timeout=60) as resp:
         resp.raise_for_status()
@@ -324,6 +326,8 @@ def download_file(url: str, path: Path) -> Path:
 
 
 def run_ffmpeg_extract_audio(video_path: Path, audio_path: Path) -> None:
+    if audio_path.exists() and audio_path.stat().st_size > 0:
+        return
     if shutil.which("ffmpeg") is None:
         raise RuntimeError("ffmpeg not found")
     cmd = [
@@ -344,6 +348,9 @@ def run_ffmpeg_extract_audio(video_path: Path, audio_path: Path) -> None:
 
 
 def run_whisper_transcribe(audio_path: Path, output_dir: Path, model: str, language: str) -> Path:
+    transcript_path = output_dir / f"{audio_path.stem}.json"
+    if transcript_path.exists() and transcript_path.stat().st_size > 0:
+        return transcript_path
     whisper_bin = shutil.which("whisper")
     if whisper_bin is None:
         raise RuntimeError("whisper CLI not found")
@@ -366,7 +373,6 @@ def run_whisper_transcribe(audio_path: Path, output_dir: Path, model: str, langu
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode != 0:
         raise RuntimeError(result.stderr.strip() or "whisper failed")
-    transcript_path = output_dir / f"{audio_path.stem}.json"
     if not transcript_path.exists():
         raise RuntimeError("whisper output json not found")
     return transcript_path
@@ -430,6 +436,118 @@ def build_merged_text(*, title: str, desc: str, transcript_text: str) -> str:
     if transcript_text.strip():
         parts.append(f"[音轨转写]\n{transcript_text.strip()}")
     return "\n\n".join(parts).strip()
+
+
+def extract_hashtags(desc: str) -> list[str]:
+    tags = re.findall(r"#([^\s#]+)", desc or "")
+    deduped: list[str] = []
+    for tag in tags:
+        v = tag.strip()
+        if v and v not in deduped:
+            deduped.append(v)
+    return deduped
+
+
+def split_sentences(text: str) -> list[str]:
+    base = re.sub(r"\s+", "", text or "").strip()
+    if not base:
+        return []
+    parts = re.split(r"[。！？!?；;，,]", base)
+    out: list[str] = []
+    for p in parts:
+        v = p.strip("，, ")
+        if 10 <= len(v) <= 56:
+            out.append(v)
+    if out:
+        return out
+    # fallback: fixed-length chunks when punctuation quality is poor
+    fallback: list[str] = []
+    chunk = 36
+    for i in range(0, len(base), chunk):
+        seg = base[i : i + chunk].strip("，, ")
+        if len(seg) >= 10:
+            fallback.append(seg)
+    return fallback
+
+
+def extract_ranked_items(transcript_text: str) -> list[dict[str, str]]:
+    text = re.sub(r"\s+", "", transcript_text or "")
+    if not text:
+        return []
+    matches = list(re.finditer(r"第([一二三四五六七八九十百零两\\d]{1,3})名", text))
+    if not matches:
+        return []
+    items: list[dict[str, str]] = []
+    for idx, cur in enumerate(matches):
+        start = cur.start()
+        end = matches[idx + 1].start() if idx + 1 < len(matches) else len(text)
+        chunk = text[start:end]
+        chunk = chunk.replace("，", "，").strip()
+        short = chunk[:80] + ("..." if len(chunk) > 80 else "")
+        rank = f"第{cur.group(1)}名"
+        items.append({"rank": rank, "summary": short})
+    return items[:10]
+
+
+def build_structured_summary(*, title: str, desc: str, transcript_text: str) -> dict[str, Any]:
+    sentences = split_sentences(transcript_text)
+    hashtags = extract_hashtags(desc)
+    ranked_items = extract_ranked_items(transcript_text)
+
+    theme = title.strip() or (sentences[0] if sentences else "视频内容总结")
+    dedup_points: list[str] = []
+    for s in sentences:
+        if s not in dedup_points:
+            dedup_points.append(s)
+        if len(dedup_points) >= 6:
+            break
+    key_points = dedup_points
+    reusable_copy_parts = [title.strip(), desc.strip()]
+    if key_points:
+        short_points = [p[:30] + ("..." if len(p) > 30 else "") for p in key_points[:3]]
+        reusable_copy_parts.append("要点：" + "；".join(short_points))
+    reusable_copy = "\n".join([p for p in reusable_copy_parts if p]).strip()
+
+    return {
+        "theme": theme,
+        "key_points": key_points,
+        "ranked_items": ranked_items,
+        "hashtags": hashtags,
+        "reusable_copy": reusable_copy,
+        "generator": "script-rule",
+    }
+
+
+def render_structured_summary_markdown(feed_id: str | None, summary: dict[str, Any]) -> str:
+    key_points = summary.get("key_points") or []
+    ranked_items = summary.get("ranked_items") or []
+    hashtags = summary.get("hashtags") or []
+    title = f"# 小红书结构化提炼（{feed_id or 'unknown'}）"
+    lines = [
+        title,
+        "",
+        f"- generator: {summary.get('generator') or 'unknown'}",
+        "",
+        "## 主题一句话",
+        str(summary.get("theme") or "（空）"),
+        "",
+        "## 关键要点",
+    ]
+    if key_points:
+        lines.extend([f"- {p}" for p in key_points])
+    else:
+        lines.append("- （未提取到稳定要点）")
+
+    lines.extend(["", "## 片单结构化"])
+    if ranked_items:
+        for item in ranked_items:
+            lines.append(f"- {item.get('rank')}: {item.get('summary')}")
+    else:
+        lines.append("- 未稳定识别")
+
+    lines.extend(["", "## 标签", ", ".join(hashtags) if hashtags else "（无）"])
+    lines.extend(["", "## 可复用文案", str(summary.get("reusable_copy") or "（空）"), ""])
+    return "\n".join(lines)
 
 
 def main() -> int:
@@ -505,6 +623,9 @@ def main() -> int:
     out_name_base = f"feed-{feed_id}" if feed_id else video_path.stem
     merged_json = output_dir / f"{out_name_base}-video-merged.json"
     merged_md = output_dir / f"{out_name_base}-video-merged.md"
+    summary_json = output_dir / f"{out_name_base}-video-summary.json"
+    summary_md = output_dir / f"{out_name_base}-video-summary.md"
+    structured_summary = build_structured_summary(title=title, desc=desc, transcript_text=transcript_text)
 
     payload = {
         "xhs_url_input": args.xhs_url,
@@ -532,8 +653,10 @@ def main() -> int:
             "merged_text": merged_text,
             "merged_chars": len(merged_text),
         },
+        "structured_summary": structured_summary,
     }
     merged_json.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    summary_json.write_text(json.dumps(structured_summary, ensure_ascii=False, indent=2), encoding="utf-8")
 
     md = "\n".join(
         [
@@ -555,6 +678,10 @@ def main() -> int:
         ]
     )
     merged_md.write_text(md, encoding="utf-8")
+    summary_md.write_text(
+        render_structured_summary_markdown(feed_id=feed_id, summary=structured_summary),
+        encoding="utf-8",
+    )
 
     print(
         json.dumps(
@@ -566,6 +693,8 @@ def main() -> int:
                 "json": str(merged_json),
                 "markdown": str(merged_md),
                 "transcript": str(transcript_json_path),
+                "summary_json": str(summary_json),
+                "summary_markdown": str(summary_md),
             },
             ensure_ascii=False,
         )
