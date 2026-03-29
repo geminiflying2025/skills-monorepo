@@ -470,11 +470,20 @@ def split_sentences(text: str) -> list[str]:
     return fallback
 
 
+def split_sentences_prefer_desc(desc: str, transcript_text: str) -> list[str]:
+    desc_clean = re.sub(r"\s+", "", desc or "").strip()
+    desc_parts = re.split(r"[。！？!?；;\n]", desc_clean)
+    desc_sentences = [p.strip("，, ") for p in desc_parts if 10 <= len(p.strip()) <= 120]
+    if len(desc_sentences) >= 4:
+        return desc_sentences
+    return split_sentences(transcript_text)
+
+
 def extract_ranked_items(transcript_text: str) -> list[dict[str, str]]:
     text = re.sub(r"\s+", "", transcript_text or "")
     if not text:
         return []
-    matches = list(re.finditer(r"第([一二三四五六七八九十百零两\\d]{1,3})名", text))
+    matches = list(re.finditer(r"(第([一二三四五六七八九十百零两\\d]{1,3})名|Top\\s*([0-9]{1,2})|NO\\.?\\s*([0-9]{1,2}))", text, flags=re.IGNORECASE))
     if not matches:
         return []
     items: list[dict[str, str]] = []
@@ -482,34 +491,57 @@ def extract_ranked_items(transcript_text: str) -> list[dict[str, str]]:
         start = cur.start()
         end = matches[idx + 1].start() if idx + 1 < len(matches) else len(text)
         chunk = text[start:end]
-        chunk = chunk.replace("，", "，").strip()
-        short = chunk[:80] + ("..." if len(chunk) > 80 else "")
-        rank = f"第{cur.group(1)}名"
-        items.append({"rank": rank, "summary": short})
+        chunk = chunk.strip()
+        rank = cur.group(1)
+        parts = re.split(r"[。！？!?；;，,]", chunk)
+        kept = [p.strip() for p in parts if 8 <= len(p.strip()) <= 120]
+        summary = "；".join(kept[:3]).strip()
+        if not summary:
+            summary = chunk[:180].strip()
+        items.append({"rank": rank, "summary": summary})
     return items[:10]
 
 
+def build_outline_items(sentences: list[str]) -> list[dict[str, str]]:
+    if not sentences:
+        return []
+    items: list[dict[str, str]] = []
+    i = 0
+    idx = 1
+    while i < len(sentences) and idx <= 6:
+        seg = sentences[i : i + 2]
+        text = "；".join(seg).strip()
+        if len(text) >= 12:
+            items.append({"rank": f"段落{idx}", "summary": text})
+            idx += 1
+        i += 2
+    return items
+
+
 def build_structured_summary(*, title: str, desc: str, transcript_text: str) -> dict[str, Any]:
-    sentences = split_sentences(transcript_text)
+    sentences = split_sentences_prefer_desc(desc, transcript_text)
     hashtags = extract_hashtags(desc)
     ranked_items = extract_ranked_items(transcript_text)
+    if not ranked_items:
+        ranked_items = build_outline_items(sentences)
 
     theme = title.strip() or (sentences[0] if sentences else "视频内容总结")
+    detailed_summary = "；".join(sentences[:8]).strip()
     dedup_points: list[str] = []
     for s in sentences:
         if s not in dedup_points:
             dedup_points.append(s)
-        if len(dedup_points) >= 6:
+        if len(dedup_points) >= 10:
             break
     key_points = dedup_points
     reusable_copy_parts = [title.strip(), desc.strip()]
     if key_points:
-        short_points = [p[:30] + ("..." if len(p) > 30 else "") for p in key_points[:3]]
-        reusable_copy_parts.append("要点：" + "；".join(short_points))
+        reusable_copy_parts.append("要点：" + "；".join(key_points[:5]))
     reusable_copy = "\n".join([p for p in reusable_copy_parts if p]).strip()
 
     return {
         "theme": theme,
+        "main_summary": detailed_summary,
         "key_points": key_points,
         "ranked_items": ranked_items,
         "hashtags": hashtags,
@@ -531,14 +563,17 @@ def render_structured_summary_markdown(feed_id: str | None, summary: dict[str, A
         "## 主题一句话",
         str(summary.get("theme") or "（空）"),
         "",
-        "## 关键要点",
+        "## 主要内容详述",
+        str(summary.get("main_summary") or "（空）"),
+        "",
+        "## 关键要点（详细）",
     ]
     if key_points:
         lines.extend([f"- {p}" for p in key_points])
     else:
         lines.append("- （未提取到稳定要点）")
 
-    lines.extend(["", "## 片单结构化"])
+    lines.extend(["", "## 结构化分段"])
     if ranked_items:
         for item in ranked_items:
             lines.append(f"- {item.get('rank')}: {item.get('summary')}")
