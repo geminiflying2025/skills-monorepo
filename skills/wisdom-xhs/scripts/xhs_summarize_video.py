@@ -520,68 +520,29 @@ def build_outline_items(sentences: list[str]) -> list[dict[str, str]]:
 
 def build_structured_summary(*, title: str, desc: str, transcript_text: str) -> dict[str, Any]:
     sentences = split_sentences_prefer_desc(desc, transcript_text)
-    hashtags = extract_hashtags(desc)
-    ranked_items = extract_ranked_items(transcript_text)
-    if not ranked_items:
-        ranked_items = build_outline_items(sentences)
-
-    theme = title.strip() or (sentences[0] if sentences else "视频内容总结")
+    _ = title
     detailed_summary = "；".join(sentences[:8]).strip()
-    dedup_points: list[str] = []
-    for s in sentences:
-        if s not in dedup_points:
-            dedup_points.append(s)
-        if len(dedup_points) >= 10:
-            break
-    key_points = dedup_points
-    reusable_copy_parts = [title.strip(), desc.strip()]
-    if key_points:
-        reusable_copy_parts.append("要点：" + "；".join(key_points[:5]))
-    reusable_copy = "\n".join([p for p in reusable_copy_parts if p]).strip()
+    if not detailed_summary:
+        fallback = re.sub(r"\s+", " ", (desc or transcript_text or "")).strip()
+        detailed_summary = fallback[:1200]
 
     return {
-        "theme": theme,
         "main_summary": detailed_summary,
-        "key_points": key_points,
-        "ranked_items": ranked_items,
-        "hashtags": hashtags,
-        "reusable_copy": reusable_copy,
         "generator": "script-rule",
     }
 
 
 def render_structured_summary_markdown(feed_id: str | None, summary: dict[str, Any]) -> str:
-    key_points = summary.get("key_points") or []
-    ranked_items = summary.get("ranked_items") or []
-    hashtags = summary.get("hashtags") or []
-    title = f"# 小红书结构化提炼（{feed_id or 'unknown'}）"
+    title = f"# 小红书主要内容总结（{feed_id or 'unknown'}）"
     lines = [
         title,
         "",
         f"- generator: {summary.get('generator') or 'unknown'}",
         "",
-        "## 主题一句话",
-        str(summary.get("theme") or "（空）"),
-        "",
         "## 主要内容详述",
         str(summary.get("main_summary") or "（空）"),
-        "",
-        "## 关键要点（详细）",
     ]
-    if key_points:
-        lines.extend([f"- {p}" for p in key_points])
-    else:
-        lines.append("- （未提取到稳定要点）")
-
-    lines.extend(["", "## 结构化分段"])
-    if ranked_items:
-        for item in ranked_items:
-            lines.append(f"- {item.get('rank')}: {item.get('summary')}")
-    else:
-        lines.append("- 未稳定识别")
-
-    lines.extend(["", "## 标签", ", ".join(hashtags) if hashtags else "（无）"])
-    lines.extend(["", "## 可复用文案", str(summary.get("reusable_copy") or "（空）"), ""])
+    lines.extend([""])
     return "\n".join(lines)
 
 
