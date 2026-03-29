@@ -521,28 +521,55 @@ def build_outline_items(sentences: list[str]) -> list[dict[str, str]]:
 def build_structured_summary(*, title: str, desc: str, transcript_text: str) -> dict[str, Any]:
     sentences = split_sentences_prefer_desc(desc, transcript_text)
     _ = title
-    detailed_summary = "；".join(sentences[:8]).strip()
+    # Keep a high-retention summary instead of aggressive compression.
+    detailed_summary = "；".join(sentences[:18]).strip()
     if not detailed_summary:
         fallback = re.sub(r"\s+", " ", (desc or transcript_text or "")).strip()
-        detailed_summary = fallback[:1200]
+        detailed_summary = fallback[:2800]
+
+    source_text = re.sub(r"\s+", " ", (desc or transcript_text or "")).strip()
+    numbers = sorted(set(re.findall(r"\d+(?:\.\d+)?(?:分|万|亿|分钟|年|天|次|集|%|岁)?", source_text)))[:20]
+    quoted_titles = sorted(set(re.findall(r"《[^》]{1,30}》", source_text)))[:20]
+    names = sorted(set(re.findall(r"[一-龥]{2,4}（[^）]{1,20}饰）", source_text)))[:20]
 
     return {
         "main_summary": detailed_summary,
+        "key_information": {
+            "titles_or_events": quoted_titles,
+            "people": names,
+            "numbers": numbers,
+        },
+        "source_used": "desc_first" if desc.strip() else "transcript_only",
         "generator": "script-rule",
     }
 
 
 def render_structured_summary_markdown(feed_id: str | None, summary: dict[str, Any]) -> str:
-    title = f"# 小红书主要内容总结（{feed_id or 'unknown'}）"
+    title = f"# 小红书信息保留型总结（{feed_id or 'unknown'}）"
+    key_info = summary.get("key_information") or {}
+    titles_or_events = key_info.get("titles_or_events") or []
+    people = key_info.get("people") or []
+    numbers = key_info.get("numbers") or []
     lines = [
         title,
         "",
         f"- generator: {summary.get('generator') or 'unknown'}",
+        f"- source_used: {summary.get('source_used') or 'unknown'}",
         "",
-        "## 主要内容详述",
+        "## 主要内容（高保留）",
         str(summary.get("main_summary") or "（空）"),
+        "",
+        "## 关键信息清单",
     ]
-    lines.extend([""])
+    if titles_or_events:
+        lines.append("- 作品/事件: " + "、".join(titles_or_events))
+    if people:
+        lines.append("- 人物: " + "、".join(people))
+    if numbers:
+        lines.append("- 数值/时间: " + "、".join(numbers))
+    if not titles_or_events and not people and not numbers:
+        lines.append("- （未抽取到稳定结构化字段）")
+    lines.append("")
     return "\n".join(lines)
 
 
