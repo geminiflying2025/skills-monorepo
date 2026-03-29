@@ -15,6 +15,8 @@ from urllib.parse import parse_qs, urlparse
 import requests
 from mcporter_utils import build_mcporter_command, build_mcporter_env
 
+XHSLINK_HOSTS = {"xhslink.com", "www.xhslink.com"}
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -66,6 +68,28 @@ def parse_feed_and_token_from_url(url: str) -> tuple[str | None, str | None]:
             feed_id = part
             break
     return feed_id, token
+
+
+def expand_xhs_short_url(url: str) -> str:
+    parsed = urlparse(url)
+    host = (parsed.netloc or "").lower()
+    if host not in XHSLINK_HOSTS:
+        return url
+
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
+        )
+    }
+    try:
+        resp = requests.get(url, headers=headers, allow_redirects=True, timeout=20)
+        final_url = (resp.url or "").strip()
+        if final_url:
+            return final_url
+    except Exception:
+        pass
+    return url
 
 
 def run_mcp_get_feed_detail(feed_id: str, xsec_token: str) -> dict[str, Any] | None:
@@ -330,8 +354,10 @@ def main() -> int:
     feed_id = args.feed_id
     xsec_token = args.xsec_token
 
+    resolved_xhs_url = args.xhs_url
     if args.xhs_url:
-        parsed_feed_id, parsed_token = parse_feed_and_token_from_url(args.xhs_url)
+        resolved_xhs_url = expand_xhs_short_url(args.xhs_url)
+        parsed_feed_id, parsed_token = parse_feed_and_token_from_url(resolved_xhs_url)
         feed_id = feed_id or parsed_feed_id
         xsec_token = xsec_token or parsed_token
 
@@ -383,6 +409,8 @@ def main() -> int:
     merged_md = output_dir / f"{out_name_base}-video-merged.md"
 
     payload = {
+        "xhs_url_input": args.xhs_url,
+        "xhs_url_resolved": resolved_xhs_url,
         "feed_id": feed_id,
         "xsec_token": xsec_token,
         "source": source,
