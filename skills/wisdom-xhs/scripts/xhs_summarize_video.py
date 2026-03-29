@@ -8,9 +8,10 @@ import re
 import shutil
 import subprocess
 import sys
+from html import unescape
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 import requests
 from mcporter_utils import build_mcporter_command, build_mcporter_env
@@ -204,6 +205,93 @@ def pick_video_url_from_note(note: dict[str, Any]) -> str | None:
     return candidates[0][1]
 
 
+def normalize_media_url(url: str) -> str:
+    cleaned = url.strip().strip('"').strip("'")
+    cleaned = cleaned.replace("\\u002F", "/").replace("\\/", "/")
+    cleaned = unescape(cleaned)
+    try:
+        cleaned = unquote(unquote(cleaned))
+    except Exception:
+        pass
+    return cleaned
+
+
+def pick_best_video_candidate(candidates: set[str]) -> str | None:
+    scored: list[tuple[int, str]] = []
+    for raw in candidates:
+        s = normalize_media_url(raw)
+        if not s.startswith("http"):
+            continue
+        if ".mp4" not in s and ".m3u8" not in s:
+            continue
+        score = 0
+        if ".mp4" in s:
+            score += 20
+        if "xhscdn.com" in s:
+            score += 10
+        if "stream" in s:
+            score += 5
+        if "watermark" in s:
+            score -= 3
+        if "bak" in s:
+            score -= 2
+        scored.append((score, s))
+    if not scored:
+        return None
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return scored[0][1]
+
+
+def pick_video_url_from_page(url: str) -> str | None:
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
+        )
+    }
+    try:
+        resp = requests.get(url, headers=headers, timeout=25, allow_redirects=True)
+        resp.raise_for_status()
+    except Exception:
+        return None
+
+    html = resp.text
+    candidates: set[str] = set()
+    patterns = [
+        r"https?://[^\"'\\\s]+(?:\.mp4|\.m3u8)[^\"'\\\s]*",
+        r"https?:\\/\\/[^\"'\\\s]+(?:\.mp4|\.m3u8)[^\"'\\\s]*",
+    ]
+    for pattern in patterns:
+        candidates.update(re.findall(pattern, html))
+
+    marker = "window.__INITIAL_STATE__="
+    marker_idx = html.find(marker)
+    if marker_idx >= 0:
+        json_start = html.find("{", marker_idx)
+        if json_start >= 0:
+            depth = 0
+            json_end = -1
+            for idx, ch in enumerate(html[json_start:], json_start):
+                if ch == "{":
+                    depth += 1
+                elif ch == "}":
+                    depth -= 1
+                    if depth == 0:
+                        json_end = idx
+                        break
+            if json_end > json_start:
+                state_raw = html[json_start : json_end + 1]
+                state_raw = re.sub(r":\s*undefined(?=[,}\]])", ":null", state_raw)
+                state_raw = re.sub(r"\bundefined\b", "null", state_raw)
+                try:
+                    state = json.loads(state_raw)
+                    candidates.update(walk_strings(state))
+                except Exception:
+                    pass
+
+    return pick_best_video_candidate(candidates)
+
+
 def dispatch_non_video_summary(feed_id: str, xsec_token: str, output_dir: Path) -> int:
     script_path = Path(__file__).with_name("xhs_summarize_main.py")
     command = [
@@ -374,6 +462,16 @@ def main() -> int:
                 raise RuntimeError("provide --video-file or --video-url or a valid --xhs-url/--feed-id+--xsec-token")
             note, source = resolve_note_detail(feed_id, xsec_token)
             video_url = pick_video_url_from_note(note)
+            if (not video_url) and resolved_xhs_url:
+                video_url = pick_video_url_from_page(resolved_xhs_url)
+            if (not video_url) and feed_id and xsec_token:
+                try:
+                    web_payload = load_note_from_web(feed_id, xsec_token)
+                    web_note = ((web_payload.get("data") or {}).get("note") or {})
+                    if web_note:
+                        video_url = pick_video_url_from_note(web_note)
+                except Exception:
+                    pass
             if not video_url:
                 return dispatch_non_video_summary(feed_id, xsec_token, output_dir)
 
