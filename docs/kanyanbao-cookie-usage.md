@@ -136,6 +136,11 @@ If requests start returning login-expired responses:
 2. Log in again
 3. Re-export the session to `/tmp/kanyanbao-state-now.json`
 
+The downloader now performs this check as its first step. It validates the
+current state against the columns endpoint, and if the session is invalid it
+launches [`scripts/kanyanbao_refresh_state.sh`](/Users/macmini/Projects/skills-monorepo/scripts/kanyanbao_refresh_state.sh)
+before continuing.
+
 ## Current script reference
 
 The current implementation that already handles this correctly is:

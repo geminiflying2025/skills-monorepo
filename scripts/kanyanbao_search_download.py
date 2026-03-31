@@ -25,6 +25,9 @@ DOWNLOAD_URL = f"{BASE}/imageserver/report/download.htm?id={{objid}}"
 DEFAULT_CAPTCHA_COMMAND = (
     "/Users/macmini/Projects/skills-monorepo/skills/captcha-solver/fix_download.sh"
 )
+DEFAULT_REFRESH_STATE_COMMAND = (
+    "/Users/macmini/Projects/skills-monorepo/scripts/kanyanbao_refresh_state.sh"
+)
 DEFAULT_OUTPUT_ROOT = Path("/Volumes/资产-投资研究/研报下载")
 LOCAL_OUTPUT_ROOT = Path("output")
 DEFAULT_COLUMNS = [
@@ -109,6 +112,11 @@ def parse_args() -> argparse.Namespace:
         "--captcha-command",
         default=DEFAULT_CAPTCHA_COMMAND,
         help="command to run when a captcha page is detected; receives CAPTCHA_URL and DOWNLOAD_URL in env",
+    )
+    p.add_argument(
+        "--refresh-state-command",
+        default=DEFAULT_REFRESH_STATE_COMMAND,
+        help="command to run when login state is invalid; receives state-file path as its only argument",
     )
     p.add_argument("--dry-run", action="store_true", help="only list results without downloading")
     return p.parse_args()
@@ -269,6 +277,14 @@ def state_get(session: requests.Session, url: str, **kwargs: Any) -> requests.Re
     return session.get(url, headers=headers, **kwargs)
 
 
+def parse_json_response(response: requests.Response) -> Any:
+    try:
+        return response.json()
+    except ValueError:
+        # Some login-expired responses contain raw tab characters, which breaks strict JSON parsing.
+        return json.loads(response.text.replace("\t", " "))
+
+
 def build_captcha_url(download_url: str) -> str:
     parsed = urlparse(download_url)
     redirect_url = quote(parsed.path + (f"?{parsed.query}" if parsed.query else ""), safe="")
@@ -290,12 +306,51 @@ def is_captcha_page(response: requests.Response) -> bool:
 def fetch_columns(session: requests.Session) -> list[dict[str, Any]]:
     r = state_get(session, COLUMNS_URL, timeout=60)
     r.raise_for_status()
-    data = r.json()
+    data = parse_json_response(r)
     if isinstance(data, dict) and data.get("check_session_status") == 0:
         raise RuntimeError(data.get("message") or "login session expired")
     if not isinstance(data, list):
         raise RuntimeError("unexpected columns response")
     return data
+
+
+def validate_state_session(state_file: Path) -> tuple[bool, str]:
+    try:
+        session = load_state_session(state_file)
+    except Exception as exc:  # noqa: BLE001
+        return False, str(exc)
+
+    try:
+        fetch_columns(session)
+    except Exception as exc:  # noqa: BLE001
+        return False, str(exc)
+    return True, ""
+
+
+def ensure_valid_state_session(state_file: Path, refresh_command: str) -> requests.Session:
+    valid, reason = validate_state_session(state_file)
+    if valid:
+        return load_state_session(state_file)
+
+    if not refresh_command:
+        raise RuntimeError(f"login session invalid: {reason}")
+
+    print(
+        f"login state invalid, launching refresh flow: {reason}",
+        file=os.sys.stderr,
+        flush=True,
+    )
+    proc = subprocess.run(
+        [refresh_command, str(state_file)],
+        check=False,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(f"refresh state command failed with exit code {proc.returncode}")
+
+    valid, reason = validate_state_session(state_file)
+    if not valid:
+        raise RuntimeError(f"login session still invalid after refresh: {reason}")
+    return load_state_session(state_file)
 
 
 def build_name_index(columns_data: list[dict[str, Any]]) -> dict[str, list[tuple[str, int]]]:
@@ -570,7 +625,7 @@ def main() -> int:
         output_dir = retry_manifest_path.parent
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    session = load_state_session(state_file)
+    session = ensure_valid_state_session(state_file, args.refresh_state_command)
     if retry_manifest_path is not None:
         resolved = ResolvedFilters(column_ids=[], doctype_ids=[], found_names=[], not_found_names=[])
         results = load_failed_manifest_items(retry_manifest_path)

@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest import mock
 
 
 MODULE_PATH = Path("/Users/macmini/Projects/skills-monorepo/scripts/kanyanbao_search_download.py")
@@ -108,6 +109,53 @@ class ResolveOutputDirTests(unittest.TestCase):
         )
 
         self.assertEqual(params["pageNumStart"], "5")
+
+    def test_parse_json_response_tolerates_raw_tabs(self):
+        mod = load_module()
+
+        response = mock.Mock()
+        response.json.side_effect = ValueError("bad json")
+        response.text = '{"check_session_status":0,\t"message":"登录状态失效"}'
+
+        data = mod.parse_json_response(response)
+
+        self.assertEqual(data["check_session_status"], 0)
+        self.assertEqual(data["message"], "登录状态失效")
+
+    def test_validate_state_session_returns_false_when_columns_fail(self):
+        mod = load_module()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state_path = Path(tmpdir) / "state.json"
+            state_path.write_text(json.dumps({"cookies": []}), encoding="utf-8")
+
+            with mock.patch.object(mod, "fetch_columns", side_effect=RuntimeError("登录状态失效")):
+                valid, reason = mod.validate_state_session(state_path)
+
+        self.assertFalse(valid)
+        self.assertIn("登录状态失效", reason)
+
+    def test_ensure_valid_state_session_refreshes_invalid_state(self):
+        mod = load_module()
+        state_path = Path("/tmp/test-kanyanbao-state.json")
+
+        with (
+            mock.patch.object(mod, "validate_state_session", side_effect=[(False, "expired"), (True, "")]),
+            mock.patch.object(mod, "load_state_session", return_value="SESSION"),
+            mock.patch.object(mod.subprocess, "run", return_value=SimpleNamespace(returncode=0)) as run_mock,
+        ):
+            session = mod.ensure_valid_state_session(state_path, "/tmp/refresh.sh")
+
+        self.assertEqual(session, "SESSION")
+        run_mock.assert_called_once_with([ "/tmp/refresh.sh", str(state_path)], check=False)
+
+    def test_ensure_valid_state_session_raises_when_refresh_disabled(self):
+        mod = load_module()
+        state_path = Path("/tmp/test-kanyanbao-state.json")
+
+        with mock.patch.object(mod, "validate_state_session", return_value=(False, "expired")):
+            with self.assertRaisesRegex(RuntimeError, "login session invalid: expired"):
+                mod.ensure_valid_state_session(state_path, "")
 
 
 if __name__ == "__main__":
