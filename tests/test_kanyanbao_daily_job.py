@@ -25,7 +25,7 @@ class KanyanbaoDailyJobTests(unittest.TestCase):
             env=merged_env,
         )
 
-    def test_daily_job_passes_expected_args_with_refresh_disabled_by_default(self) -> None:
+    def test_daily_job_passes_expected_args_with_refresh_enabled_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp = Path(tmpdir)
             args_path = tmp / "args.json"
@@ -79,14 +79,14 @@ class KanyanbaoDailyJobTests(unittest.TestCase):
                     "--top",
                     "1000",
                     "--refresh-state-command",
-                    "",
+                    "/Users/macmini/Projects/skills-monorepo/scripts/kanyanbao_refresh_state.sh",
                 ],
             )
             payload = json.loads(result.stdout)
             self.assertEqual(payload["matched"], 3)
             self.assertEqual(payload["sync_dir"], "/tmp/sync")
 
-    def test_daily_job_can_enable_interactive_refresh_explicitly(self) -> None:
+    def test_daily_job_can_disable_interactive_refresh_explicitly(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp = Path(tmpdir)
             args_path = tmp / "args.json"
@@ -116,7 +116,7 @@ class KanyanbaoDailyJobTests(unittest.TestCase):
                     "KANYANBAO_YESTERDAY": "2026-04-01",
                     "KANYANBAO_SEARCH_DOWNLOAD_SCRIPT": str(fake_search),
                     "KANYANBAO_REFRESH_STATE_SCRIPT": str(fake_refresh),
-                    "KANYANBAO_ALLOW_INTERACTIVE_REFRESH": "1",
+                    "KANYANBAO_ALLOW_INTERACTIVE_REFRESH": "0",
                 }
             )
 
@@ -124,7 +124,7 @@ class KanyanbaoDailyJobTests(unittest.TestCase):
             args = json.loads(args_path.read_text(encoding="utf-8"))
             self.assertIn("--refresh-state-command", args)
             refresh_index = args.index("--refresh-state-command")
-            self.assertEqual(args[refresh_index + 1], str(fake_refresh))
+            self.assertEqual(args[refresh_index + 1], "")
 
 
 if __name__ == "__main__":

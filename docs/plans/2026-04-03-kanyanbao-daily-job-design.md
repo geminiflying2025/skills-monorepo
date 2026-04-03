@@ -9,15 +9,15 @@
 ## 方案
 
 - 新增总控脚本 [`scripts/kanyanbao_daily_job.sh`](/Users/macmini/Projects/skills-monorepo/scripts/kanyanbao_daily_job.sh) 作为唯一入口。
-- 总控脚本默认以无人值守模式运行，不触发交互式登录刷新；如果登录态失效则由底层脚本快速失败并返回错误。
-- 仅在人工手动执行时，通过环境变量 `KANYANBAO_ALLOW_INTERACTIVE_REFRESH=1` 显式允许调用 [`scripts/kanyanbao_refresh_state.sh`](/Users/macmini/Projects/skills-monorepo/scripts/kanyanbao_refresh_state.sh)。
+- 总控脚本默认允许交互式登录刷新；如果登录态失效，会调用 [`scripts/kanyanbao_refresh_state.sh`](/Users/macmini/Projects/skills-monorepo/scripts/kanyanbao_refresh_state.sh) 拉起浏览器补登录后继续。
+- 如需显式关闭交互刷新，可设置环境变量 `KANYANBAO_ALLOW_INTERACTIVE_REFRESH=0`。
 - 系统定时由 `launchd` 使用一个 plist 调度总控脚本。
 
 ## 关键权衡
 
 - 优点：只有一个系统任务，运维面最小；下载和同步都在系统权限下执行，不受 Codex 沙箱限制。
-- 限制：登录刷新仍然是交互式浏览器流程，所以无人值守任务不能自动补登录，只能在登录态有效时持续运行。
-- 结论：把“自动刷新登录”改成后台无头方案之前，最稳妥的策略是默认禁用交互刷新，避免定时任务卡死。
+- 限制：登录刷新仍然是交互式浏览器流程，所以调度触发时如果登录态失效，会拉起浏览器并等待人工完成登录确认。
+- 结论：当前设计优先“自动补登录能力”而不是“完全无人值守”；如果后续需要彻底无人值守，需要再把登录刷新改成无头方案。
 
 ## 验证
 

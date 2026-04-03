@@ -19,7 +19,7 @@
     <key>KANYANBAO_TIMEZONE</key>
     <string>Asia/Shanghai</string>
     <key>KANYANBAO_ALLOW_INTERACTIVE_REFRESH</key>
-    <string>0</string>
+    <string>1</string>
   </dict>
 
   <key>StartCalendarInterval</key>
