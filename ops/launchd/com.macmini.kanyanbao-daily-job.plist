@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.macmini.kanyanbao-daily-job</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>/Users/macmini/Projects/skills-monorepo/scripts/kanyanbao_daily_job.sh</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/macmini/Projects/skills-monorepo</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>KANYANBAO_TIMEZONE</key>
+    <string>Asia/Shanghai</string>
+    <key>KANYANBAO_ALLOW_INTERACTIVE_REFRESH</key>
+    <string>0</string>
+  </dict>
+
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>8</integer>
+    <key>Minute</key>
+    <integer>5</integer>
+  </dict>
+
+  <key>StandardOutPath</key>
+  <string>/tmp/kanyanbao-daily-job.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/tmp/kanyanbao-daily-job.err</string>
+
+  <key>RunAtLoad</key>
+  <false/>
+</dict>
+</plist>
