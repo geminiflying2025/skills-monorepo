@@ -101,8 +101,12 @@ with sync_playwright() as p:
         with open("/dev/tty", "r", encoding="utf-8", errors="ignore") as tty:
             print(prompt, end="", flush=True)
             tty.readline()
-    except OSError:
-        input(prompt)
+    except (OSError, EOFError):
+        if auto_login_ok:
+            print("未检测到可交互终端，自动登录后直接保存登录态...", flush=True)
+            page.wait_for_timeout(1500)
+        else:
+            raise RuntimeError("interactive login required but no TTY is available")
     state_path.parent.mkdir(parents=True, exist_ok=True)
     context.storage_state(path=str(state_path))
     print(f"saved storage state: {state_path}")
