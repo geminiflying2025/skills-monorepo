@@ -102,7 +102,7 @@ class KanyanbaoDailyJobTests(unittest.TestCase):
                     "--state-file",
                     str(state_path),
                     "--top",
-                    "1000",
+                    "150",
                     "--refresh-state-command",
                     "/Users/macmini/Projects/skills-monorepo/scripts/kanyanbao_refresh_state.sh",
                     "--output-dir",
