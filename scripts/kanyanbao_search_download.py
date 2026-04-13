@@ -43,12 +43,38 @@ DEFAULT_COLUMNS = [
     "量化投资",
 ]
 
-# Alias: user-facing name -> required column/doctypes
+# Alias: user-facing name -> explicit column/doctypes mapping
 ALIASES = {
+    "世界经济": {
+        "column_specs": [("宏观经济", "世界经济")],
+    },
+    "宏观经济运行": {
+        "column_specs": [("宏观经济", "宏观经济运行")],
+    },
+    "金融工程专题": {
+        "column_specs": [("金融工程", "金融工程专题")],
+    },
+    "期货报告": {
+        "column_specs": [("期货报告", "期货报告")],
+    },
+    "政策点评": {
+        "column_specs": [("宏观经济", "政策点评")],
+    },
+    "策略专题": {
+        "column_specs": [("策略研究", "策略专题")],
+    },
+    "数据点评": {
+        "column_specs": [("宏观经济", "数据点评")],
+    },
+    "策略周报": {
+        "column_specs": [("策略研究", "策略周报")],
+    },
     "定期报告(债券)": {
-        "columns": ["债券研究"],
-        "doctypes": ["定期报告"],
-    }
+        "column_specs": [("债券研究", "定期报告")],
+    },
+    "量化投资": {
+        "column_specs": [("金融工程", "量化投资")],
+    },
 }
 
 
@@ -58,6 +84,12 @@ class ResolvedFilters:
     doctype_ids: list[int]
     found_names: list[str]
     not_found_names: list[str]
+
+
+@dataclass(frozen=True)
+class ColumnSpec:
+    column_name: str
+    doctype_name: str | None = None
 
 
 def parse_args() -> argparse.Namespace:
@@ -372,12 +404,56 @@ def build_name_index(columns_data: list[dict[str, Any]]) -> dict[str, list[tuple
     return idx
 
 
-def resolve_filters(raw_names: list[str], name_index: dict[str, list[tuple[str, int]]]) -> ResolvedFilters:
+def resolve_column_specs(
+    specs: list[ColumnSpec],
+    columns_data: list[dict[str, Any]],
+) -> tuple[set[int], set[int], list[str]]:
+    column_ids: set[int] = set()
+    doctype_ids: set[int] = set()
+    missing: list[str] = []
+
+    columns_by_name: dict[str, dict[str, Any]] = {
+        str(col.get("name") or ""): col for col in columns_data if isinstance(col, dict)
+    }
+
+    for spec in specs:
+        col = columns_by_name.get(spec.column_name)
+        if not col:
+            missing.append(spec.column_name if spec.doctype_name is None else f"{spec.column_name}/{spec.doctype_name}")
+            continue
+
+        col_id = int(col.get("id") or 0)
+        if col_id > 0:
+            column_ids.add(col_id)
+
+        if spec.doctype_name is None:
+            continue
+
+        matched = False
+        for dt in col.get("types", []) or []:
+            if str(dt.get("name") or "") == spec.doctype_name:
+                dt_id = int(dt.get("id") or 0)
+                if dt_id > 0:
+                    doctype_ids.add(dt_id)
+                    matched = True
+                break
+        if not matched:
+            missing.append(f"{spec.column_name}/{spec.doctype_name}")
+
+    return column_ids, doctype_ids, missing
+
+
+def resolve_filters(
+    raw_names: list[str],
+    name_index: dict[str, list[tuple[str, int]]],
+    columns_data: list[dict[str, Any]],
+) -> ResolvedFilters:
     expanded: list[str] = []
+    explicit_specs: list[tuple[str, ColumnSpec]] = []
     for n in raw_names:
         if n in ALIASES:
-            expanded.extend(ALIASES[n].get("columns", []))
-            expanded.extend(ALIASES[n].get("doctypes", []))
+            for col_name, dt_name in ALIASES[n].get("column_specs", []):
+                explicit_specs.append((n, ColumnSpec(column_name=col_name, doctype_name=dt_name)))
         else:
             expanded.append(n)
 
@@ -385,6 +461,21 @@ def resolve_filters(raw_names: list[str], name_index: dict[str, list[tuple[str, 
     doctype_ids: set[int] = set()
     found: list[str] = []
     not_found: list[str] = []
+
+    if explicit_specs:
+        spec_column_ids, spec_doctype_ids, missing_specs = resolve_column_specs(
+            [spec for _label, spec in explicit_specs],
+            columns_data,
+        )
+        column_ids.update(spec_column_ids)
+        doctype_ids.update(spec_doctype_ids)
+        missing_set = set(missing_specs)
+        for label, spec in explicit_specs:
+            key = spec.column_name if spec.doctype_name is None else f"{spec.column_name}/{spec.doctype_name}"
+            if key in missing_set:
+                not_found.append(label)
+            else:
+                found.append(label)
 
     for n in expanded:
         pairs = name_index.get(n, [])
@@ -632,7 +723,7 @@ def main() -> int:
     else:
         columns_data = fetch_columns(session)
         name_index = build_name_index(columns_data)
-        resolved = resolve_filters(columns_input, name_index)
+        resolved = resolve_filters(columns_input, name_index, columns_data)
 
         results = search_reports(
             session=session,

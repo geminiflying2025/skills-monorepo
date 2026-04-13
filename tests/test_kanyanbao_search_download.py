@@ -110,6 +110,58 @@ class ResolveOutputDirTests(unittest.TestCase):
 
         self.assertEqual(params["pageNumStart"], "5")
 
+    def test_resolve_filters_uses_explicit_column_doctype_mapping_for_macro(self):
+        mod = load_module()
+        columns_data = [
+            {
+                "id": 4,
+                "name": "宏观经济",
+                "types": [
+                    {"id": 16, "name": "世界经济"},
+                    {"id": 17, "name": "宏观经济运行"},
+                    {"id": 18, "name": "数据点评"},
+                    {"id": 19, "name": "政策点评"},
+                ],
+            },
+            {
+                "id": 3,
+                "name": "策略研究",
+                "types": [
+                    {"id": 12, "name": "策略周报"},
+                    {"id": 77, "name": "策略专题"},
+                ],
+            },
+        ]
+
+        name_index = mod.build_name_index(columns_data)
+        resolved = mod.resolve_filters(["宏观经济运行", "策略周报"], name_index, columns_data)
+
+        self.assertEqual(resolved.column_ids, [3, 4])
+        self.assertEqual(resolved.doctype_ids, [12, 17])
+        self.assertEqual(resolved.not_found_names, [])
+        self.assertEqual(resolved.found_names, ["宏观经济运行", "策略周报"])
+
+    def test_resolve_filters_maps_bond_regular_report_alias_explicitly(self):
+        mod = load_module()
+        columns_data = [
+            {
+                "id": 5,
+                "name": "债券研究",
+                "types": [
+                    {"id": 21, "name": "新券研究"},
+                    {"id": 23, "name": "定期报告"},
+                ],
+            }
+        ]
+
+        name_index = mod.build_name_index(columns_data)
+        resolved = mod.resolve_filters(["定期报告(债券)"], name_index, columns_data)
+
+        self.assertEqual(resolved.column_ids, [5])
+        self.assertEqual(resolved.doctype_ids, [23])
+        self.assertEqual(resolved.not_found_names, [])
+        self.assertEqual(resolved.found_names, ["定期报告(债券)"])
+
     def test_parse_json_response_tolerates_raw_tabs(self):
         mod = load_module()
 
