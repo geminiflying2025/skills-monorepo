@@ -8,3 +8,4 @@ __pycache__/
 .env
 output/*
 !output/.gitkeep
+apps/content-hub/data/

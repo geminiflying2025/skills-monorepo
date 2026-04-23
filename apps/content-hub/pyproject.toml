@@ -1,0 +1,8 @@
+[project]
+name = "content-hub"
+version = "0.1.0"
+description = "Unified content processing hub"
+requires-python = ">=3.12"
+
+[project.scripts]
+hub = "content_hub.cli:main"
