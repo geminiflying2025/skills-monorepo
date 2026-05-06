@@ -114,6 +114,14 @@ class ResolveOutputDirTests(unittest.TestCase):
         mod = load_module()
         columns_data = [
             {
+                "id": 2,
+                "name": "行业研究",
+                "types": [
+                    {"id": 83, "name": "行业专题"},
+                    {"id": 9, "name": "行业策略深度"},
+                ],
+            },
+            {
                 "id": 4,
                 "name": "宏观经济",
                 "types": [
@@ -134,12 +142,12 @@ class ResolveOutputDirTests(unittest.TestCase):
         ]
 
         name_index = mod.build_name_index(columns_data)
-        resolved = mod.resolve_filters(["宏观经济运行", "策略周报"], name_index, columns_data)
+        resolved = mod.resolve_filters(["宏观经济运行", "策略周报", "行业专题", "行业策略深度"], name_index, columns_data)
 
-        self.assertEqual(resolved.column_ids, [3, 4])
-        self.assertEqual(resolved.doctype_ids, [12, 17])
+        self.assertEqual(resolved.column_ids, [2, 3, 4])
+        self.assertEqual(resolved.doctype_ids, [9, 12, 17, 83])
         self.assertEqual(resolved.not_found_names, [])
-        self.assertEqual(resolved.found_names, ["宏观经济运行", "策略周报"])
+        self.assertEqual(resolved.found_names, ["宏观经济运行", "策略周报", "行业专题", "行业策略深度"])
 
     def test_resolve_filters_maps_bond_regular_report_alias_explicitly(self):
         mod = load_module()
