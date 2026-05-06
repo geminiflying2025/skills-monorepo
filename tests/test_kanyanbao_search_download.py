@@ -217,6 +217,66 @@ class ResolveOutputDirTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "login session invalid: expired"):
                 mod.ensure_valid_state_session(state_path, "")
 
+    def test_retry_manifest_keeps_explicit_output_dir(self):
+        mod = load_module()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            explicit_output_dir = tmp / "job-output"
+            retry_manifest_path = tmp / "retry-source" / "download_manifest.json"
+            retry_manifest_path.parent.mkdir(parents=True, exist_ok=True)
+            retry_manifest_path.write_text(
+                json.dumps(
+                    [
+                        {
+                            "index": 1,
+                            "report_id": 11,
+                            "objid": 101,
+                            "title": "failed row",
+                            "file": "01_failed_101.pdf",
+                            "url": "https://example.com/101",
+                            "ok": False,
+                            "status": 403,
+                            "error": "non_file:text/html",
+                        }
+                    ],
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            args = SimpleNamespace(
+                keyword="",
+                column=[],
+                columns="",
+                top=10,
+                page_size=40,
+                min_pages=None,
+                start="2026-05-04",
+                end="2026-05-04",
+                last_days=None,
+                state_file=str(tmp / "state.json"),
+                output_dir=str(explicit_output_dir),
+                retry_failed_manifest=str(retry_manifest_path),
+                force_download=False,
+                captcha_command="",
+                refresh_state_command="",
+                dry_run=True,
+            )
+
+            with (
+                mock.patch.object(mod, "parse_args", return_value=args),
+                mock.patch.object(mod, "ensure_valid_state_session", return_value=object()),
+                mock.patch.object(mod, "load_failed_manifest_items", return_value=[]),
+                mock.patch.object(mod, "sync_output_dir", return_value=(True, "")),
+            ):
+                rc = mod.main()
+
+            self.assertEqual(rc, 0)
+            self.assertTrue(explicit_output_dir.exists())
+            self.assertFalse((retry_manifest_path.parent / "download_manifest.csv").exists())
+            self.assertTrue((explicit_output_dir / "download_manifest.json").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

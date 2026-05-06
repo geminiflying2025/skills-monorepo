@@ -720,7 +720,7 @@ def main() -> int:
     columns_input = collect_column_filters(args)
     output_dir = resolve_output_dir(args, start, end)
     retry_manifest_path = Path(args.retry_failed_manifest) if args.retry_failed_manifest else None
-    if retry_manifest_path is not None:
+    if retry_manifest_path is not None and not args.output_dir:
         output_dir = retry_manifest_path.parent
     output_dir.mkdir(parents=True, exist_ok=True)
 
