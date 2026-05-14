@@ -6,5 +6,6 @@ dist/
 __pycache__/
 *.pyc
 .env
+.wechat-draft.env
 output/*
 !output/.gitkeep

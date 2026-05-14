@@ -42,3 +42,12 @@
   managed_in_repo: true
   repo_path: "skills/wisdom-xhs"
   keep: true
+
+- name: "wechat-draft-publisher"
+  type: "custom"
+  status: "managed"
+  summary: "将本地 HTML 图文文章上传到微信公众号素材库并创建公众号草稿，不执行群发。"
+  location: "/Users/macmini/.openclaw/skills/wechat-draft-publisher"
+  managed_in_repo: true
+  repo_path: "skills/wechat-draft-publisher"
+  keep: true
