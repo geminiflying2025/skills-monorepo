@@ -48,6 +48,23 @@ python3 ~/.openclaw/skills/readurl/scripts/pagecopy_read.py "<url>" \
   --force-browser
 ```
 
+Optional PageCopy real URL with local images:
+
+```bash
+python3 ~/.openclaw/skills/readurl/scripts/pagecopy_read.py "<url>" \
+  --base "http://www.chenchen.city/pagecopy" \
+  --force-browser \
+  --localize-images \
+  --out-dir "$(pwd)/tmp/readurl-snapshots"
+```
+
+Use `--localize-images` when the mirrored PageCopy `archived_url` preserves text
+layout but WeChat images stay in a loading state. The script keeps the original
+`<base>` URL so WeChat CSS and layout resources continue to resolve correctly,
+then rewrites WeChat image `src` / `data-src` values to absolute `file://` URLs
+for downloaded local assets. Do not rewrite `<base>` to a local directory; that
+fixes images but can break the real page styling.
+
 Optional cookie header for session-gated pages:
 
 ```bash
@@ -61,6 +78,7 @@ python3 ~/.openclaw/skills/readurl/scripts/pagecopy_read.py "<url>" \
 Return:
 - `archived_url`
 - extracted plain text body
+- when `--localize-images` is used: `localization.local_html_path`, `assets_dir`, `manifest_path`, and image counts
 - warning if text looks incomplete (challenge/login/paywall)
 
 If all fallbacks fail, explain exactly which layer failed and what user action is needed (e.g. provide cookies or attach Chrome tab).
