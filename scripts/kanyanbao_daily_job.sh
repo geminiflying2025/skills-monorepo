@@ -135,7 +135,13 @@ run_search() {
   return "$rc"
 }
 
-first_stdout="$(mktemp /tmp/kanyanbao-daily-first-XXXXXX.log)"
+make_temp_file() {
+  # Use a BSD-compatible mktemp template so macOS automation doesn't get stuck
+  # on a literal XXXXXX filename after the first run.
+  mktemp "${TMPDIR:-/tmp}/$1.XXXXXX"
+}
+
+first_stdout="$(make_temp_file kanyanbao-daily-first)"
 retry_stdout=""
 original_manifest_copy=""
 cleanup() {
@@ -169,10 +175,10 @@ if [[ "$failed_count" -eq 0 ]]; then
   exit 0
 fi
 
-original_manifest_copy="$(mktemp /tmp/kanyanbao-retry-source-XXXXXX.json)"
+original_manifest_copy="$(make_temp_file kanyanbao-retry-source)"
 cp "$MANIFEST_JSON" "$original_manifest_copy"
 
-retry_stdout="$(mktemp /tmp/kanyanbao-daily-retry-XXXXXX.log)"
+retry_stdout="$(make_temp_file kanyanbao-daily-retry)"
 run_search "$retry_stdout" \
   --state-file "$STATE_FILE" \
   --refresh-state-command "$REFRESH_COMMAND" \
