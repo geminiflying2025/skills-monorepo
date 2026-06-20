@@ -7,6 +7,24 @@
   repo_path: "skills/market-report"
   keep: true
 
+- name: "beacon-status-notifier"
+  type: "custom"
+  status: "managed"
+  summary: "在用户明确要求时，将当前 Codex/agent 执行状态发送为 Beacon reminder。"
+  location: "/Users/macmini/.openclaw/skills/beacon-status-notifier"
+  managed_in_repo: true
+  repo_path: "skills/beacon-status-notifier"
+  keep: true
+
+- name: "feishu-task-notifier"
+  type: "custom"
+  status: "managed"
+  summary: "在用户明确要求时，通过 feishu-notify 发送简短飞书任务通知。"
+  location: "/Users/macmini/.openclaw/skills/feishu-task-notifier"
+  managed_in_repo: true
+  repo_path: "skills/feishu-task-notifier"
+  keep: true
+
 - name: "notebooklm-docs"
   type: "custom"
   status: "managed"
