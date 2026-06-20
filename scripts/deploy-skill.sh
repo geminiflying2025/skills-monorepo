@@ -27,6 +27,8 @@ if [ "$TARGET" = "local" ]; then
     --exclude '.venv' \
     --exclude 'dist' \
     --exclude '.pytest_cache' \
+    --exclude '__pycache__' \
+    --exclude '*.pyc' \
     "$SRC" "$DEST"
 else
   ssh "$TARGET" "mkdir -p ~/.openclaw/skills/$SKILL_NAME"
@@ -37,5 +39,7 @@ else
     --exclude '.venv' \
     --exclude 'dist' \
     --exclude '.pytest_cache' \
+    --exclude '__pycache__' \
+    --exclude '*.pyc' \
     "$SRC" "$TARGET":~/.openclaw/skills/$SKILL_NAME/
 fi
