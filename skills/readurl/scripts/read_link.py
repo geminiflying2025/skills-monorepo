@@ -26,6 +26,11 @@ MAX_TEXT_CHARS = 120_000
 MIN_USEFUL_TEXT_CHARS = 80
 DEFAULT_PAGECOPY_BASE = "http://www.chenchen.city/pagecopy"
 DEFAULT_SUBTITLE_LANGS = "zh.*,zh-Hans,zh-Hant,en.*"
+BILIBILI_API_BASE = "https://api.bilibili.com"
+BROWSER_UA = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -234,11 +239,7 @@ def sanitize_error(error: str) -> str:
 
 def fetch_html(url: str, options: Options) -> tuple[str, dict[str, str]]:
     req = urllib.request.Request(url, method="GET")
-    req.add_header(
-        "User-Agent",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/124.0 Safari/537.36",
-    )
+    req.add_header("User-Agent", BROWSER_UA)
     req.add_header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
     req.add_header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
     if options.cookie_header:
@@ -661,6 +662,190 @@ def new_files(directory: Path, before: set[Path]) -> list[Path]:
     return sorted(after - before)
 
 
+def process_bilibili_api_url(url: str, run_dir: Path, result: dict[str, Any], options: Options) -> bool:
+    bvid = extract_bilibili_bvid(url)
+    if not bvid:
+        add_failure(result, "bilibili_api", "could not extract BV id from URL")
+        return False
+    try:
+        view = fetch_bilibili_view(bvid, options)
+    except Exception as exc:
+        add_failure(result, "bilibili_api_view", str(exc))
+        return False
+
+    metadata_dir = run_dir / "metadata"
+    metadata_dir.mkdir(parents=True, exist_ok=True)
+    view_path = metadata_dir / "bilibili-view.json"
+    write_json(view_path, view)
+    add_artifact(result, "metadata", view_path)
+    add_bilibili_metadata(result, view, run_dir)
+    ok = True
+
+    downloaded: Path | None = None
+    if options.download_original or options.capture_frames:
+        downloaded = download_bilibili_mp4(url, bvid, view, run_dir, result, options)
+        ok = ok or downloaded is not None
+    if downloaded and options.capture_frames:
+        metadata = {"duration": view.get("duration")}
+        frames = capture_key_frames(downloaded, run_dir, result, metadata)
+        ok = ok or bool(frames)
+
+    return ok
+
+
+def extract_bilibili_bvid(url: str) -> str | None:
+    match = re.search(r"(BV[0-9A-Za-z]+)", url)
+    if match:
+        return match.group(1)
+    parsed = urllib.parse.urlparse(url)
+    query = urllib.parse.parse_qs(parsed.query)
+    values = query.get("bvid") or query.get("BV")
+    return values[0] if values else None
+
+
+def bilibili_api_headers(referer: str = "https://www.bilibili.com/") -> dict[str, str]:
+    return {
+        "User-Agent": BROWSER_UA,
+        "Accept": "application/json,text/plain,*/*",
+        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+        "Origin": "https://www.bilibili.com",
+        "Referer": referer,
+    }
+
+
+def fetch_bilibili_json(path: str, params: dict[str, Any], options: Options, referer: str) -> dict[str, Any]:
+    query = urllib.parse.urlencode({k: v for k, v in params.items() if v is not None})
+    req = urllib.request.Request(f"{BILIBILI_API_BASE}{path}?{query}", headers=bilibili_api_headers(referer))
+    with urllib.request.urlopen(req, timeout=options.timeout_seconds) as resp:
+        raw = resp.read(MAX_HTML_BYTES)
+    payload = json.loads(raw.decode("utf-8", errors="replace"))
+    if payload.get("code") != 0:
+        raise RuntimeError(f"{path} returned code={payload.get('code')} message={payload.get('message')}")
+    return payload
+
+
+def fetch_bilibili_view(bvid: str, options: Options) -> dict[str, Any]:
+    payload = fetch_bilibili_json("/x/web-interface/view", {"bvid": bvid}, options, "https://www.bilibili.com/")
+    data = payload.get("data")
+    if not isinstance(data, dict):
+        raise RuntimeError("view API returned no data")
+    return data
+
+
+def add_bilibili_metadata(result: dict[str, Any], view: dict[str, Any], run_dir: Path) -> None:
+    owner = view.get("owner") if isinstance(view.get("owner"), dict) else {}
+    stat = view.get("stat") if isinstance(view.get("stat"), dict) else {}
+    summary = {
+        "id": view.get("bvid"),
+        "bvid": view.get("bvid"),
+        "aid": view.get("aid"),
+        "cid": view.get("cid"),
+        "title": view.get("title"),
+        "uploader": owner.get("name"),
+        "duration": view.get("duration"),
+        "upload_date": view.get("pubdate"),
+        "webpage_url": f"https://www.bilibili.com/video/{view.get('bvid')}/" if view.get("bvid") else None,
+    }
+    result["metadata"].update({k: v for k, v in summary.items() if v not in (None, "")})
+    lines = []
+    for key, value in summary.items():
+        if value not in (None, ""):
+            lines.append(f"{key}: {value}")
+    if stat:
+        stat_items = ", ".join(f"{k}={v}" for k, v in stat.items() if isinstance(v, (str, int, float)))
+        if stat_items:
+            lines.append(f"stat: {stat_items}")
+    desc = normalize_text(view.get("desc") or "")
+    if desc:
+        lines.extend(["", "description:", desc])
+    if lines:
+        path = run_dir / "metadata" / "bilibili_summary.txt"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        text = "\n".join(lines)
+        path.write_text(text, encoding="utf-8")
+        add_text(result, "bilibili_metadata", text, "bilibili api", path)
+
+
+def download_bilibili_mp4(
+    url: str,
+    bvid: str,
+    view: dict[str, Any],
+    run_dir: Path,
+    result: dict[str, Any],
+    options: Options,
+) -> Path | None:
+    cid = view.get("cid")
+    if not cid:
+        add_failure(result, "bilibili_api_playurl", "view API returned no cid")
+        return None
+    referer = f"https://www.bilibili.com/video/{bvid}/"
+    try:
+        payload = fetch_bilibili_json(
+            "/x/player/playurl",
+            {"bvid": bvid, "cid": cid, "qn": 16, "fnval": 0, "fourk": 0},
+            options,
+            referer,
+        )
+    except Exception as exc:
+        add_failure(result, "bilibili_api_playurl", str(exc))
+        return None
+
+    metadata_dir = run_dir / "metadata"
+    metadata_dir.mkdir(parents=True, exist_ok=True)
+    playurl_path = metadata_dir / "bilibili-playurl.json"
+    write_json(playurl_path, payload)
+    add_artifact(result, "metadata", playurl_path)
+
+    data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+    durls = data.get("durl") if isinstance(data.get("durl"), list) else []
+    media_url = durls[0].get("url") if durls and isinstance(durls[0], dict) else None
+    if not media_url:
+        add_failure(result, "bilibili_api_playurl", "playurl API returned no progressive mp4 durl")
+        return None
+
+    media_dir = run_dir / "media"
+    media_dir.mkdir(parents=True, exist_ok=True)
+    filename = safe_filename(f"{view.get('title') or bvid}-{bvid}.mp4")
+    path = media_dir / filename
+    try:
+        download_binary(
+            media_url,
+            path,
+            bilibili_api_headers(referer),
+            timeout=max(options.timeout_seconds, 60),
+            max_bytes=options.max_download_mb * 1024 * 1024,
+        )
+    except Exception as exc:
+        add_failure(result, "bilibili_api_download", str(exc))
+        return None
+    add_artifact(result, "media", path)
+    return path
+
+
+def safe_filename(name: str) -> str:
+    cleaned = re.sub(r"[\\/:*?\"<>|\r\n]+", "_", name).strip(" .")
+    return cleaned[:120] or "download.mp4"
+
+
+def download_binary(url: str, path: Path, headers: dict[str, str], timeout: float, max_bytes: int) -> None:
+    req = urllib.request.Request(url, headers=headers)
+    tmp = path.with_suffix(path.suffix + ".part")
+    total = 0
+    with urllib.request.urlopen(req, timeout=timeout) as resp, tmp.open("wb") as out:
+        length = resp.headers.get("Content-Length")
+        if length and int(length) > max_bytes:
+            raise RuntimeError(f"download exceeds max size: {length} bytes")
+        while True:
+            chunk = resp.read(1024 * 1024)
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > max_bytes:
+                raise RuntimeError(f"download exceeded max size: {max_bytes} bytes")
+            out.write(chunk)
+    tmp.replace(path)
+
+
 def transcribe_audio(audio_file: Path, run_dir: Path, result: dict[str, Any]) -> str:
     whisper = shutil.which("whisper")
     if whisper is None:
@@ -842,6 +1027,8 @@ def process_url(url: str, output_root: Path, options: Options) -> dict[str, Any]
                 options,
                 force_images=classification.kind == "social-post",
             ) or useful
+        if classification.platform == "bilibili" and not useful:
+            useful = process_bilibili_api_url(url, run_dir, result, options) or useful
     else:
         useful = read_web_pipeline(url, run_dir, result, options)
 

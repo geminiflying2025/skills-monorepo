@@ -167,6 +167,8 @@ python3 <skill-dir>/scripts/read_link.py "<video-url>" \
   --out-dir /abs/path/to/output/readurl
 ```
 
+Bilibili 网页和 `yt-dlp` 可能返回 `HTTP Error 412: Precondition Failed`。遇到这种情况时，脚本会自动启用 Bilibili API fallback：先调用 `x/web-interface/view` 获取标题、UP 主、cid、统计和简介；如果传了 `--download-original` 或 `--capture-frames`，再调用 `x/player/playurl` 下载低清 mp4 并抽关键帧。
+
 ### 图文帖 / 小红书
 
 通用入口会先尝试 `yt-dlp`，再回退到网页读取。对图文帖建议下载图片并 OCR：

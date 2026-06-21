@@ -70,6 +70,8 @@ class ReadLinkTests(unittest.TestCase):
             "python3 -m playwright install chromium",
             "python3 -m pip install yt-dlp",
             "python3 -m yt_dlp",
+            "Bilibili API fallback",
+            "x/web-interface/view",
             "sys.executable",
             "~/Library/Caches/ms-playwright",
             "~/.cache/ms-playwright",
@@ -196,6 +198,24 @@ class ReadLinkTests(unittest.TestCase):
             mock.patch.object(mod.shutil, "which", return_value="/usr/local/bin/yt-dlp"),
         ):
             self.assertEqual(mod.ytdlp_command(), ["yt-dlp"])
+
+    def test_bilibili_api_fallback_runs_when_media_and_web_fail(self) -> None:
+        mod = load_module()
+
+        with (
+            tempfile.TemporaryDirectory() as tmpdir,
+            mock.patch.object(mod, "process_media_url", return_value=False),
+            mock.patch.object(mod, "read_web_pipeline", return_value=False),
+            mock.patch.object(mod, "process_bilibili_api_url", return_value=True, create=True) as fallback,
+        ):
+            result = mod.process_url(
+                "https://www.bilibili.com/video/BV1Ng4y1q7pQ/",
+                Path(tmpdir),
+                mod.Options(download_original=True),
+            )
+
+        self.assertTrue(result["ok"])
+        fallback.assert_called_once()
 
 
 if __name__ == "__main__":
