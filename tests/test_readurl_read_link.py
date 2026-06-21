@@ -17,6 +17,7 @@ MODULE_PATH = (
     / "scripts"
     / "read_link.py"
 )
+SKILL_PATH = Path(__file__).resolve().parents[1] / "skills" / "readurl" / "SKILL.md"
 
 
 def load_module():
@@ -56,9 +57,29 @@ class LocalServer:
     def __exit__(self, exc_type, exc, tb) -> None:
         self.server.shutdown()
         self.thread.join(timeout=5)
+        self.server.server_close()
 
 
 class ReadLinkTests(unittest.TestCase):
+    def test_skill_documents_fixed_python_runtime_and_cache_safety(self) -> None:
+        skill = SKILL_PATH.read_text(encoding="utf-8")
+
+        required_phrases = [
+            "固定运行时",
+            "python3 -m playwright install chromium",
+            "sys.executable",
+            "~/Library/Caches/ms-playwright",
+            "~/.cache/ms-playwright",
+            "PLAYWRIGHT_CHROMIUM_EXECUTABLE",
+            "/Applications/Google Chrome.app",
+            "rm -rf ~/Library/Caches/*",
+            "~/.local/share/uv/tools",
+        ]
+
+        for phrase in required_phrases:
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, skill)
+
     def test_classify_url_recognizes_supported_platforms(self) -> None:
         mod = load_module()
 

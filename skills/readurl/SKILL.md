@@ -41,6 +41,46 @@ python3 <skill-dir>/scripts/read_link.py "<url1>" "<url2>" "<url3>" \
 
 单个 URL 失败时不要中断整体任务；读取 `result.json` / `failures.json` 汇总成功与失败项。
 
+## 固定运行时和缓存保护
+
+运行 `readurl` 时必须固定一套 Python/Playwright 运行时。默认只使用当前 shell 的 `python3`，也就是 `which python3` 指向的解释器；不要临时改用 `/usr/bin/python3`、`/opt/homebrew/bin/python3`、`python3.12`、`npx playwright` 或 Node Playwright，除非任务明确要求并说明原因。
+
+首次准备或修复 Playwright 环境时，在同一个 `python3` 下完成安装：
+
+```bash
+python3 -m pip install playwright
+python3 -m playwright install chromium
+```
+
+`read_link.py` 调用 `local_snapshot.py` 时使用 `sys.executable`，所以启动 `read_link.py` 的解释器就是后续浏览器快照使用的解释器。遇到 “Playwright not installed” 或 “Please run playwright install” 时，先检查解释器和缓存路径：
+
+```bash
+which python3
+python3 -c "import sys; print(sys.executable)"
+python3 -m playwright --version
+```
+
+不要把“换一个 Python 跑”当成修复方式；根治方式是把依赖装到约定的同一个 `python3` 环境里。完成后用实际网页验证：
+
+```bash
+python3 <skill-dir>/scripts/local_snapshot.py https://example.com/ \
+  --out-dir /abs/path/to/output/readurl/playwright-check \
+  --timeout-seconds 20
+```
+
+如果 Playwright 自带 Chromium 缓存缺失，`local_snapshot.py` 会尝试使用 `PLAYWRIGHT_CHROMIUM_EXECUTABLE`、`CHROME_EXECUTABLE`，再回退到本机浏览器，例如 `/Applications/Google Chrome.app`。这只是运行时兜底，不代表可以随意删除 Playwright 缓存。
+
+不要随意删除这些目录：
+
+- `~/Library/Caches/ms-playwright`：macOS 上 Playwright 浏览器二进制默认缓存。
+- `~/.cache/ms-playwright`：Linux 或设置 `PLAYWRIGHT_BROWSERS_PATH` 时常见的 Playwright 浏览器缓存。
+- `~/.cache/uv`：`uv tool install` 和 Python 包下载缓存。
+- `~/.local/share/uv/tools`：`uv tool install` 安装的工具环境，例如 `openai-whisper`。
+- `~/.cache/yt-dlp` 或 `~/Library/Caches/yt-dlp`：`yt-dlp` 下载和提取器相关缓存。
+- `~/.openclaw/skills/readurl`：已部署的 skill 运行时副本，不是普通缓存。
+
+清理时不要使用 `rm -rf ~/Library/Caches/*`、`rm -rf ~/.cache/*` 这类大范围命令。必须清理时，先列出具体路径，并说明删除后需要重新安装或重新下载什么。
+
 ## 常用模式
 
 ### 普通网页 / 反爬网页
