@@ -24,6 +24,12 @@ MOBILE_UA = (
     "MicroMessenger/8.0.40(0x1800282e) NetType/WIFI Language/zh_CN"
 )
 
+CHROME_EXECUTABLE_CANDIDATES = [
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "/Applications/Chromium.app/Contents/MacOS/Chromium",
+    "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+]
+
 
 class TextExtractor(HTMLParser):
     def __init__(self) -> None:
@@ -67,11 +73,36 @@ def looks_blocked(text: str) -> bool:
     return any(x in s for x in signals)
 
 
+def browser_cache_missing(error: Exception) -> bool:
+    text = str(error).lower()
+    return "executable doesn't exist" in text or "playwright install" in text
+
+
+def local_chrome_executable() -> str | None:
+    configured = os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE") or os.environ.get("CHROME_EXECUTABLE")
+    candidates = [configured] if configured else []
+    candidates.extend(CHROME_EXECUTABLE_CANDIDATES)
+    for candidate in candidates:
+        if candidate and Path(candidate).exists():
+            return candidate
+    return None
+
+
+def launch_chromium(playwright, headless: bool):
+    try:
+        return playwright.chromium.launch(headless=headless)
+    except PlaywrightError as e:
+        chrome = local_chrome_executable()
+        if not chrome or not browser_cache_missing(e):
+            raise
+        return playwright.chromium.launch(headless=headless, executable_path=chrome)
+
+
 def render_html(url: str, timeout_ms: int, headless: bool) -> str:
     if sync_playwright is None:
         raise RuntimeError("Playwright not installed. Run: pip install playwright && playwright install chromium")
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=headless)
+        browser = launch_chromium(p, headless=headless)
         context = browser.new_context(
             user_agent=MOBILE_UA,
             viewport={"width": 414, "height": 896},
