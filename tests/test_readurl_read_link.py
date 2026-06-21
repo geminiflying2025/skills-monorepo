@@ -72,6 +72,8 @@ class ReadLinkTests(unittest.TestCase):
             "python3 -m yt_dlp",
             "Bilibili API fallback",
             "x/web-interface/view",
+            "只给链接",
+            "默认输出总结",
             "sys.executable",
             "~/Library/Caches/ms-playwright",
             "~/.cache/ms-playwright",
