@@ -52,6 +52,13 @@ python3 -m pip install playwright
 python3 -m playwright install chromium
 ```
 
+`yt-dlp` 也应安装到同一个默认 `python3` 环境，避免走 Homebrew Python 或系统 Python 后出现解析器依赖问题：
+
+```bash
+python3 -m pip install yt-dlp
+python3 -m yt_dlp --version
+```
+
 `read_link.py` 调用 `local_snapshot.py` 时使用 `sys.executable`，所以启动 `read_link.py` 的解释器就是后续浏览器快照使用的解释器。遇到 “Playwright not installed” 或 “Please run playwright install” 时，先检查解释器和缓存路径：
 
 ```bash

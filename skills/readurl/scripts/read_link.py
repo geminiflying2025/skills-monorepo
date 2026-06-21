@@ -5,6 +5,7 @@ import argparse
 import dataclasses
 import datetime as dt
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -416,8 +417,9 @@ def read_with_pagecopy(url: str, run_dir: Path, result: dict[str, Any], options:
 
 
 def process_media_url(url: str, run_dir: Path, result: dict[str, Any], options: Options) -> bool:
-    if shutil.which("yt-dlp") is None:
-        add_failure(result, "yt_dlp", "yt-dlp is not installed; install it or use browser/pagecopy fallback")
+    ytdlp = ytdlp_command()
+    if not ytdlp:
+        add_failure(result, "yt_dlp", "yt-dlp is not installed in the current python runtime; install it or use browser/pagecopy fallback")
         return False
 
     media_dir = run_dir / "media"
@@ -462,6 +464,14 @@ def process_media_url(url: str, run_dir: Path, result: dict[str, Any], options: 
     return ok
 
 
+def ytdlp_command() -> list[str]:
+    if importlib.util.find_spec("yt_dlp") is not None:
+        return [sys.executable, "-m", "yt_dlp"]
+    if shutil.which("yt-dlp") is not None:
+        return ["yt-dlp"]
+    return []
+
+
 def ytdlp_cookie_args(options: Options) -> list[str]:
     args: list[str] = []
     if options.cookies_from_browser:
@@ -473,7 +483,7 @@ def ytdlp_cookie_args(options: Options) -> list[str]:
 
 def fetch_ytdlp_metadata(url: str, run_dir: Path, result: dict[str, Any], options: Options) -> dict[str, Any] | None:
     cmd = [
-        "yt-dlp",
+        *ytdlp_command(),
         "--dump-single-json",
         "--skip-download",
         "--no-warnings",
@@ -533,7 +543,7 @@ def download_subtitles(url: str, run_dir: Path, result: dict[str, Any], options:
     before = set(subtitles_dir.glob("*")) if subtitles_dir.exists() else set()
     subtitles_dir.mkdir(parents=True, exist_ok=True)
     cmd = [
-        "yt-dlp",
+        *ytdlp_command(),
         "--skip-download",
         "--write-subs",
         "--write-auto-subs",
@@ -596,7 +606,7 @@ def download_original_media(url: str, run_dir: Path, result: dict[str, Any], opt
     before = set(media_dir.glob("*")) if media_dir.exists() else set()
     media_dir.mkdir(parents=True, exist_ok=True)
     cmd = [
-        "yt-dlp",
+        *ytdlp_command(),
         "--no-playlist",
         "--max-filesize",
         f"{options.max_download_mb}M",
@@ -622,7 +632,7 @@ def extract_audio(url: str, run_dir: Path, result: dict[str, Any], options: Opti
     before = set(media_dir.glob("*")) if media_dir.exists() else set()
     media_dir.mkdir(parents=True, exist_ok=True)
     cmd = [
-        "yt-dlp",
+        *ytdlp_command(),
         "--no-playlist",
         "--max-filesize",
         f"{options.max_download_mb}M",

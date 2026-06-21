@@ -6,6 +6,7 @@ import sys
 import tempfile
 import threading
 import unittest
+from unittest import mock
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -67,6 +68,8 @@ class ReadLinkTests(unittest.TestCase):
         required_phrases = [
             "固定运行时",
             "python3 -m playwright install chromium",
+            "python3 -m pip install yt-dlp",
+            "python3 -m yt_dlp",
             "sys.executable",
             "~/Library/Caches/ms-playwright",
             "~/.cache/ms-playwright",
@@ -178,6 +181,21 @@ class ReadLinkTests(unittest.TestCase):
         self.assertIn("--cookie <redacted>", sanitized)
         self.assertNotIn("sessionid-secret", sanitized)
         self.assertNotIn("abc123", sanitized)
+
+    def test_ytdlp_command_prefers_current_python_module(self) -> None:
+        mod = load_module()
+
+        with mock.patch.object(mod.importlib.util, "find_spec", return_value=object()):
+            self.assertEqual(mod.ytdlp_command(), [sys.executable, "-m", "yt_dlp"])
+
+    def test_ytdlp_command_falls_back_to_executable(self) -> None:
+        mod = load_module()
+
+        with (
+            mock.patch.object(mod.importlib.util, "find_spec", return_value=None),
+            mock.patch.object(mod.shutil, "which", return_value="/usr/local/bin/yt-dlp"),
+        ):
+            self.assertEqual(mod.ytdlp_command(), ["yt-dlp"])
 
 
 if __name__ == "__main__":
