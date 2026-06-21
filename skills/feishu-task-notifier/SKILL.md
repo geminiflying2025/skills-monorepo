@@ -1,15 +1,22 @@
 ---
 name: feishu-task-notifier
-description: Use when the user explicitly asks for a Feishu notification, Feishu reminder, Feishu push, or notification after a task completes.
+description: Use when the user explicitly includes the exact phrase "飞书通知" and asks to send that notification.
 ---
 
 # Feishu Task Notifier
 
 Send a short Feishu notification through the user's dedicated cc-connect
-notification bot. Use this only for explicit Feishu notification requests.
+notification bot.
 
-Do not send a notification just because a task is complete, and do not use this
-for ordinary final replies or status updates unless the user explicitly asks.
+## Strict Trigger Rule
+
+Use this skill only when the user's request explicitly includes the exact phrase
+`飞书通知`.
+
+Do not use this skill for broader requests such as `通知我`, `发个通知`,
+`提醒我`, `Feishu notification`, `Feishu reminder`, `Feishu push`, task-complete
+notifications, ordinary final replies, or status updates unless the request
+also says `飞书通知`.
 
 ## Command
 
