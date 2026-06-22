@@ -7,18 +7,21 @@ import json
 import re
 import shutil
 import subprocess
+import time
+import tempfile
 from dataclasses import dataclass
 from datetime import date, timedelta
 import os
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
+from urllib.parse import urlencode
 from urllib.parse import urlparse
 from urllib.parse import unquote
 
 import requests
 
-BASE = "https://www.kanyanbao.com"
+BASE = "https://kanyanbao.com"
 COLUMNS_URL = f"{BASE}/newreport/getNewDocColumns.json?isApp=false"
 SEARCH_URL = f"{BASE}/newsadapter/report/fulltext_report_search.json"
 DOWNLOAD_URL = f"{BASE}/imageserver/report/download.htm?id={{objid}}"
@@ -32,6 +35,12 @@ DEFAULT_OUTPUT_ROOT = Path("/Volumes/资产-投资研究/研报下载")
 DEFAULT_SYNC_HOST = "10.168.20.10"
 DEFAULT_SYNC_ACCOUNT = "chenchen"
 LOCAL_OUTPUT_ROOT = Path("output")
+DEFAULT_DOWNLOAD_CONNECT_TIMEOUT = 30.0
+DEFAULT_DOWNLOAD_READ_TIMEOUT = 120.0
+DEFAULT_DOWNLOAD_TOTAL_TIMEOUT = 90.0
+DEFAULT_REQUEST_RETRIES = 3
+DEFAULT_REQUEST_RETRY_DELAY = 2.0
+DEFAULT_REQUEST_TOTAL_TIMEOUT = 75.0
 DEFAULT_COLUMNS = [
     "世界经济",
     "宏观经济运行",
@@ -161,6 +170,7 @@ def parse_args() -> argparse.Namespace:
         help="command to run when login state is invalid; receives state-file path as its only argument",
     )
     p.add_argument("--dry-run", action="store_true", help="only list results without downloading")
+    p.add_argument("--skip-sync", action="store_true", help="do not copy output to the network sync directory")
     return p.parse_args()
 
 
@@ -358,13 +368,140 @@ def build_cookie_header(cookies: list[dict[str, Any]], url: str) -> str:
     return "; ".join(f"{name}={value}" for name, (_path, value) in chosen.items())
 
 
-def state_get(session: requests.Session, url: str, **kwargs: Any) -> requests.Response:
-    headers = dict(kwargs.pop("headers", {}) or {})
+class ResponseHeaders(dict[str, str]):
+    def __init__(self, items: dict[str, str]) -> None:
+        super().__init__(items)
+        self._lower = {k.lower(): v for k, v in items.items()}
+
+    def get(self, key: str, default: Any = None) -> Any:
+        return self._lower.get(key.lower(), default)
+
+
+class CurlResponse:
+    def __init__(self, status_code: int, headers: dict[str, str], content: bytes, url: str) -> None:
+        self.status_code = status_code
+        self.headers = ResponseHeaders(headers)
+        self.content = content
+        self.url = url
+
+    @property
+    def text(self) -> str:
+        return self.content.decode("utf-8", errors="replace")
+
+    def json(self) -> Any:
+        return json.loads(self.text)
+
+    def raise_for_status(self) -> None:
+        if self.status_code >= 400:
+            raise requests.HTTPError(f"{self.status_code} Error for url: {self.url}", response=self)
+
+
+def normalize_timeout(timeout: Any, max_time: Any = None) -> tuple[float, float]:
+    if isinstance(timeout, tuple):
+        connect_timeout = float(timeout[0])
+        fallback_max_time = sum(float(x) for x in timeout)
+    elif timeout is not None:
+        connect_timeout = min(float(timeout), DEFAULT_DOWNLOAD_CONNECT_TIMEOUT)
+        fallback_max_time = float(timeout)
+    else:
+        connect_timeout = DEFAULT_DOWNLOAD_CONNECT_TIMEOUT
+        fallback_max_time = DEFAULT_DOWNLOAD_CONNECT_TIMEOUT + DEFAULT_DOWNLOAD_READ_TIMEOUT
+    return connect_timeout, float(max_time if max_time is not None else fallback_max_time)
+
+
+def parse_curl_headers(raw: str) -> tuple[int, dict[str, str]]:
+    blocks = [block for block in raw.replace("\r\n", "\n").split("\n\n") if block.strip()]
+    if not blocks:
+        return 0, {}
+    lines = [line for line in blocks[-1].splitlines() if line.strip()]
+    status_code = 0
+    if lines:
+        parts = lines[0].split()
+        if len(parts) >= 2 and parts[1].isdigit():
+            status_code = int(parts[1])
+    headers: dict[str, str] = {}
+    for line in lines[1:]:
+        if ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        headers[key.strip()] = value.strip()
+    return status_code, headers
+
+
+def state_get(session: requests.Session, url: str, **kwargs: Any) -> CurlResponse:
+    headers = dict(getattr(session, "headers", {}) or {})
+    headers.update(dict(kwargs.pop("headers", {}) or {}))
+    params = kwargs.pop("params", None)
+    timeout = kwargs.pop("timeout", None)
+    max_time = kwargs.pop("max_time", None)
+    if kwargs:
+        raise TypeError(f"unsupported state_get kwargs: {sorted(kwargs)}")
+
+    if params:
+        sep = "&" if "?" in url else "?"
+        url = f"{url}{sep}{urlencode(params, doseq=True)}"
+
     state_cookies = getattr(session, "_kanyanbao_state_cookies", [])
     cookie_header = build_cookie_header(state_cookies, url)
     if cookie_header:
         headers["Cookie"] = cookie_header
-    return session.get(url, headers=headers, **kwargs)
+
+    connect_timeout, total_timeout = normalize_timeout(timeout, max_time)
+    with (
+        tempfile.NamedTemporaryFile() as header_file,
+        tempfile.NamedTemporaryFile() as body_file,
+    ):
+        cmd = [
+            "curl",
+            "--silent",
+            "--show-error",
+            "--location",
+            "--compressed",
+            "--connect-timeout",
+            f"{connect_timeout:g}",
+            "--max-time",
+            f"{total_timeout:g}",
+            "--dump-header",
+            header_file.name,
+            "--output",
+            body_file.name,
+        ]
+        for key, value in headers.items():
+            cmd.extend(["--header", f"{key}:{value}" if value else f"{key}:"])
+        cmd.append(url)
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=total_timeout + 5,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise requests.Timeout(f"curl subprocess timed out after {total_timeout:g}s") from exc
+        if result.returncode != 0:
+            err = (result.stderr or result.stdout).strip()
+            raise requests.RequestException(f"curl failed with exit code {result.returncode}: {err}")
+        header_text = Path(header_file.name).read_text(encoding="iso-8859-1", errors="replace")
+        content = Path(body_file.name).read_bytes()
+    status_code, response_headers = parse_curl_headers(header_text)
+    return CurlResponse(status_code=status_code, headers=response_headers, content=content, url=url)
+
+
+def state_get_with_retries(session: requests.Session, url: str, **kwargs: Any) -> requests.Response:
+    attempts = max(1, int(os.environ.get("KANYANBAO_REQUEST_RETRIES", DEFAULT_REQUEST_RETRIES)))
+    delay = max(0.0, float(os.environ.get("KANYANBAO_REQUEST_RETRY_DELAY", DEFAULT_REQUEST_RETRY_DELAY)))
+    total_timeout = get_request_total_timeout()
+    for attempt in range(1, attempts + 1):
+        try:
+            kwargs["max_time"] = total_timeout
+            return state_get(session, url, **kwargs)
+        except requests.RequestException:
+            if attempt >= attempts:
+                raise
+            if delay:
+                time.sleep(delay)
+    raise RuntimeError("unreachable request retry state")
 
 
 def parse_json_response(response: requests.Response) -> Any:
@@ -373,6 +510,20 @@ def parse_json_response(response: requests.Response) -> Any:
     except ValueError:
         # Some login-expired responses contain raw tab characters, which breaks strict JSON parsing.
         return json.loads(response.text.replace("\t", " "))
+
+
+def get_download_timeout() -> tuple[float, float]:
+    connect_timeout = float(os.environ.get("KANYANBAO_DOWNLOAD_CONNECT_TIMEOUT", DEFAULT_DOWNLOAD_CONNECT_TIMEOUT))
+    read_timeout = float(os.environ.get("KANYANBAO_DOWNLOAD_READ_TIMEOUT", DEFAULT_DOWNLOAD_READ_TIMEOUT))
+    return connect_timeout, read_timeout
+
+
+def get_download_total_timeout() -> float:
+    return float(os.environ.get("KANYANBAO_DOWNLOAD_TOTAL_TIMEOUT", DEFAULT_DOWNLOAD_TOTAL_TIMEOUT))
+
+
+def get_request_total_timeout() -> float:
+    return float(os.environ.get("KANYANBAO_REQUEST_TOTAL_TIMEOUT", DEFAULT_REQUEST_TOTAL_TIMEOUT))
 
 
 def build_captcha_url(download_url: str) -> str:
@@ -394,7 +545,7 @@ def is_captcha_page(response: requests.Response) -> bool:
 
 
 def fetch_columns(session: requests.Session) -> list[dict[str, Any]]:
-    r = state_get(session, COLUMNS_URL, timeout=60)
+    r = state_get_with_retries(session, COLUMNS_URL, timeout=60)
     r.raise_for_status()
     data = parse_json_response(r)
     if isinstance(data, dict) and data.get("check_session_status") == 0:
@@ -624,7 +775,7 @@ def search_reports(
             doctype_ids,
             min_pages=min_pages,
         )
-        r = state_get(session, SEARCH_URL, params=params, timeout=60)
+        r = state_get_with_retries(session, SEARCH_URL, params=params, timeout=60)
         r.raise_for_status()
         data = r.json()
 
@@ -680,7 +831,13 @@ def search_reports(
 
 def download_file(session: requests.Session, url: str, out_path: Path) -> tuple[bool, int, str]:
     try:
-        r = state_get(session, url, timeout=120, headers={"Accept": "*/*", "X-Requested-With": ""})
+        r = state_get(
+            session,
+            url,
+            timeout=get_download_timeout(),
+            max_time=get_download_total_timeout(),
+            headers={"Accept": "*/*", "X-Requested-With": ""},
+        )
         if is_captcha_page(r):
             return False, r.status_code, f"captcha_required:{build_captcha_url(url)}"
         ct = (r.headers.get("content-type") or "").lower()
@@ -910,10 +1067,16 @@ def main() -> int:
     }
 
     sync_dir = resolve_sync_output_dir(output_dir)
-    sync_ok, sync_error = sync_output_dir(output_dir, sync_dir)
     summary["sync_dir"] = str(sync_dir)
-    summary["sync_ok"] = sync_ok
-    summary["sync_error"] = sync_error
+    if getattr(args, "skip_sync", False):
+        summary["sync_ok"] = False
+        summary["sync_error"] = "skipped"
+        summary["sync_skipped"] = True
+    else:
+        sync_ok, sync_error = sync_output_dir(output_dir, sync_dir)
+        summary["sync_ok"] = sync_ok
+        summary["sync_error"] = sync_error
+        summary["sync_skipped"] = False
 
     print(json.dumps(summary, ensure_ascii=False, indent=2))
     return 0

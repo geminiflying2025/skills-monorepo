@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import json
+import contextlib
+import io
 import importlib.util
+import os
 import subprocess
 import sys
 import tempfile
@@ -81,6 +84,45 @@ class ResolveOutputDirTests(unittest.TestCase):
             self.assertEqual(error, "")
             self.assertTrue((sync_dir / "sample.pdf").exists())
             self.assertEqual(run_mock.call_count, 2)
+
+    def test_main_skip_sync_does_not_copy_to_network_volume(self):
+        mod = load_module()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir) / "out"
+            argv = [
+                "kanyanbao_search_download.py",
+                "--start",
+                "2026-06-21",
+                "--end",
+                "2026-06-21",
+                "--state-file",
+                str(Path(tmpdir) / "state.json"),
+                "--output-dir",
+                str(output_dir),
+                "--skip-sync",
+            ]
+
+            with (
+                mock.patch.object(sys, "argv", argv),
+                mock.patch.object(mod, "ensure_valid_state_session", return_value=object()),
+                mock.patch.object(mod, "fetch_columns", return_value=[]),
+                mock.patch.object(mod, "build_name_index", return_value={}),
+                mock.patch.object(
+                    mod,
+                    "resolve_filters",
+                    return_value=mod.ResolvedFilters([], [], [], []),
+                ),
+                mock.patch.object(mod, "search_reports", return_value=[]),
+                mock.patch.object(mod, "sync_output_dir") as sync_mock,
+                contextlib.redirect_stdout(io.StringIO()) as stdout,
+            ):
+                rc = mod.main()
+
+            self.assertEqual(rc, 0)
+            sync_mock.assert_not_called()
+            payload = json.loads(stdout.getvalue())
+            self.assertTrue(payload["sync_skipped"])
+            self.assertEqual(payload["sync_error"], "skipped")
 
     def test_load_failed_manifest_items_returns_only_failed_rows(self):
         mod = load_module()
@@ -210,6 +252,65 @@ class ResolveOutputDirTests(unittest.TestCase):
 
         self.assertEqual(data["check_session_status"], 0)
         self.assertEqual(data["message"], "登录状态失效")
+
+    def test_download_file_uses_bounded_connect_timeout(self):
+        mod = load_module()
+        response = mock.Mock()
+        response.status_code = 200
+        response.content = b"%PDF-1.4"
+        response.headers = {"content-type": "application/pdf"}
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out_path = Path(tmpdir) / "sample.pdf"
+            with mock.patch.object(mod, "state_get", return_value=response) as get_mock:
+                ok, status, error = mod.download_file(mock.Mock(), "https://example.com/report.pdf", out_path)
+
+        self.assertTrue(ok)
+        self.assertEqual(status, 200)
+        self.assertEqual(error, "")
+        self.assertEqual(get_mock.call_args.kwargs["timeout"], (30.0, 120.0))
+
+    def test_download_total_timeout_can_be_configured(self):
+        mod = load_module()
+
+        with mock.patch.dict(os.environ, {"KANYANBAO_DOWNLOAD_TOTAL_TIMEOUT": "45"}, clear=False):
+            self.assertEqual(mod.get_download_total_timeout(), 45.0)
+
+    def test_request_total_timeout_can_be_configured(self):
+        mod = load_module()
+
+        with mock.patch.dict(os.environ, {"KANYANBAO_REQUEST_TOTAL_TIMEOUT": "30"}, clear=False):
+            self.assertEqual(mod.get_request_total_timeout(), 30.0)
+
+    def test_search_reports_retries_transient_request_timeout(self):
+        mod = load_module()
+        response = mock.Mock()
+        response.json.return_value = {"reports": [], "reportAttachMap": {}}
+        response.raise_for_status.return_value = None
+
+        with (
+            mock.patch.object(
+                mod,
+                "state_get",
+                side_effect=[mod.requests.ReadTimeout("slow"), response],
+            ) as get_mock,
+            mock.patch.object(mod.time, "sleep") as sleep_mock,
+        ):
+            results = mod.search_reports(
+                session=mock.Mock(),
+                keyword="",
+                start="2026-06-21",
+                end="2026-06-21",
+                page_size=40,
+                top=150,
+                column_ids=[],
+                doctype_ids=[],
+                min_pages=5,
+            )
+
+        self.assertEqual(results, [])
+        self.assertEqual(get_mock.call_count, 2)
+        sleep_mock.assert_called_once_with(2.0)
 
     def test_validate_state_session_returns_false_when_columns_fail(self):
         mod = load_module()

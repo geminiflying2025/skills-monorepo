@@ -12,6 +12,7 @@ COLUMN_PRESET="${KANYANBAO_COLUMN_PRESET:-default}"
 MIN_PAGES="${KANYANBAO_MIN_PAGES:-5}"
 TOP_N="${KANYANBAO_TOP:-150}"
 ALLOW_INTERACTIVE_REFRESH="${KANYANBAO_ALLOW_INTERACTIVE_REFRESH:-1}"
+SKIP_SYNC="${KANYANBAO_SKIP_SYNC:-0}"
 
 if [[ -n "${KANYANBAO_YESTERDAY:-}" ]]; then
   YESTERDAY="${KANYANBAO_YESTERDAY}"
@@ -165,6 +166,9 @@ base_args=(
   --refresh-state-command "$REFRESH_COMMAND"
   --output-dir "$OUTPUT_DIR"
 )
+if [[ "$SKIP_SYNC" == "1" || "$SKIP_SYNC" == "true" || "$SKIP_SYNC" == "yes" ]]; then
+  base_args+=(--skip-sync)
+fi
 
 run_search "$first_stdout" "${base_args[@]}"
 first_summary_json="$(extract_summary "$first_stdout")"
@@ -178,12 +182,18 @@ fi
 original_manifest_copy="$(make_temp_file kanyanbao-retry-source)"
 cp "$MANIFEST_JSON" "$original_manifest_copy"
 
-retry_stdout="$(make_temp_file kanyanbao-daily-retry)"
-run_search "$retry_stdout" \
-  --state-file "$STATE_FILE" \
-  --refresh-state-command "$REFRESH_COMMAND" \
-  --retry-failed-manifest "$original_manifest_copy" \
+retry_args=(
+  --state-file "$STATE_FILE"
+  --refresh-state-command "$REFRESH_COMMAND"
+  --retry-failed-manifest "$original_manifest_copy"
   --output-dir "$OUTPUT_DIR"
+)
+if [[ "$SKIP_SYNC" == "1" || "$SKIP_SYNC" == "true" || "$SKIP_SYNC" == "yes" ]]; then
+  retry_args+=(--skip-sync)
+fi
+
+retry_stdout="$(make_temp_file kanyanbao-daily-retry)"
+run_search "$retry_stdout" "${retry_args[@]}"
 retry_summary_json="$(extract_summary "$retry_stdout")"
 
 merged_summary_json="$(merge_retry_manifest "$original_manifest_copy" "$MANIFEST_JSON" "$MANIFEST_JSON")"

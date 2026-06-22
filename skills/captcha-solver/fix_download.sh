@@ -4,10 +4,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
+PYTHON_BIN="${KANYANBAO_PYTHON_BIN:-python3}"
 
-source .venv/bin/activate
-
-BASE_URL="https://www.kanyanbao.com/new/view/report/download_check.jsp"
+BASE_URL="https://kanyanbao.com/new/view/report/download_check.jsp"
 REDIRECT_PATH="${1:-${CAPTCHA_URL:-}}"
 
 TARGET_URL="$BASE_URL?redirect_url="
@@ -24,13 +23,21 @@ if [[ -n "${DOWNLOAD_OUTPUT_PATH:-}" ]]; then
   EXTRA_ARGS+=(--download-output-path "$DOWNLOAD_OUTPUT_PATH")
 fi
 
-python run.py \
-  --url "$TARGET_URL" \
-  --save-storage-state "/tmp/kanyanbao-state-now.json" \
-  "${EXTRA_ARGS[@]}" \
-  --captcha-image "img#qrcode" \
-  --captcha-input "input#j_captcha_response" \
-  --submit-button "a#form_post_button" \
-  --refresh-button "img#qrcode" \
-  --expected-length 4 \
+cmd=(
+  "$PYTHON_BIN"
+  run.py
+  --url "$TARGET_URL"
+  --save-storage-state "/tmp/kanyanbao-state-now.json"
+  --captcha-image "img#qrcode"
+  --captcha-input "input#j_captcha_response"
+  --submit-button "a#form_post_button"
+  --refresh-button "img#qrcode"
+  --expected-length 4
   --max-attempts 3
+)
+
+if [[ "${#EXTRA_ARGS[@]}" -gt 0 ]]; then
+  cmd+=("${EXTRA_ARGS[@]}")
+fi
+
+"${cmd[@]}"

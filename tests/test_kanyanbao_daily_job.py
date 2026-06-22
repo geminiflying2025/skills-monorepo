@@ -114,6 +114,63 @@ class KanyanbaoDailyJobTests(unittest.TestCase):
             self.assertEqual(payload["sync_dir"], "/tmp/sync")
             self.assertEqual(payload["download_failed"], 0)
 
+    def test_daily_job_can_skip_sync_for_local_only_runs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            args_path = tmp / "args.json"
+            fake_search = tmp / "fake_search.py"
+            fake_search.write_text(
+                textwrap.dedent(
+                    f"""\
+                    #!/usr/bin/env python3
+                    import csv
+                    import json
+                    import sys
+                    from pathlib import Path
+
+                    args = sys.argv[1:]
+                    Path({str(args_path)!r}).write_text(json.dumps(args, ensure_ascii=False), encoding="utf-8")
+                    output_dir = Path(args[args.index('--output-dir') + 1])
+                    output_dir.mkdir(parents=True, exist_ok=True)
+                    manifest_path = output_dir / 'download_manifest.json'
+                    csv_path = output_dir / 'download_manifest.csv'
+                    manifest_path.write_text('[]', encoding='utf-8')
+                    with csv_path.open('w', newline='', encoding='utf-8') as f:
+                        writer = csv.DictWriter(f, fieldnames=['index', 'report_id', 'objid', 'title', 'file', 'url', 'ok', 'status', 'error'])
+                        writer.writeheader()
+                    print(json.dumps({{
+                        "matched": 0,
+                        "downloaded_ok": 0,
+                        "download_failed": 0,
+                        "output_dir": str(output_dir),
+                        "manifest_json": str(manifest_path),
+                        "manifest_csv": str(csv_path),
+                        "sync_dir": "/tmp/sync",
+                        "sync_ok": False,
+                        "sync_error": "skipped",
+                        "sync_skipped": True
+                    }}, ensure_ascii=False))
+                    """
+                ),
+                encoding="utf-8",
+            )
+            fake_search.chmod(fake_search.stat().st_mode | stat.S_IXUSR)
+
+            result = self.run_job(
+                {
+                    "KANYANBAO_YESTERDAY": "2026-04-01",
+                    "KANYANBAO_SEARCH_DOWNLOAD_SCRIPT": str(fake_search),
+                    "KANYANBAO_OUTPUT_DIR": str(tmp / "out"),
+                    "KANYANBAO_SKIP_SYNC": "1",
+                }
+            )
+
+            self.assertEqual(result.returncode, 0, msg=result.stderr)
+            args = json.loads(args_path.read_text(encoding="utf-8"))
+            self.assertIn("--skip-sync", args)
+            payload = json.loads(result.stdout)
+            self.assertTrue(payload["sync_skipped"])
+
     def test_daily_job_can_disable_interactive_refresh_explicitly(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp = Path(tmpdir)
