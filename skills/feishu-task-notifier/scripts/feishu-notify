@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+project="${CC_NOTIFY_PROJECT:-codex-feishu-notify}"
+session="${CC_NOTIFY_SESSION:-}"
+
+if [[ "${CC_FEISHU_NOTIFY_CONFIRM:-}" != "1" ]]; then
+  cat >&2 <<'EOF'
+Refusing to send through the dedicated Feishu notification bot without CC_FEISHU_NOTIFY_CONFIRM=1.
+Use this script only when the user explicitly asks for 飞书通知.
+EOF
+  exit 64
+fi
+
+if [[ -z "$session" ]]; then
+  cat >&2 <<'EOF'
+CC_NOTIFY_SESSION is required.
+Set it to the target cc-connect Feishu session key, for example:
+  CC_NOTIFY_SESSION='feishu:<chat-or-scope>:<user>'
+EOF
+  exit 64
+fi
+
+if [[ $# -gt 0 ]]; then
+  exec cc-connect send -p "$project" -s "$session" -m "$*"
+fi
+
+exec cc-connect send -p "$project" -s "$session" --stdin

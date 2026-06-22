@@ -20,16 +20,28 @@ also says `飞书通知`.
 
 ## Command
 
-Prefer the short command when available:
+Resolve `<skill-dir>` to the directory containing this `SKILL.md`.
+
+Required runtime configuration:
+
+- `CC_FEISHU_NOTIFY_CONFIRM=1`
+- `CC_NOTIFY_SESSION`: target cc-connect Feishu session key
+- `CC_NOTIFY_PROJECT`: cc-connect project name, defaults to `codex-feishu-notify`
+
+Use the packaged script directly:
 
 ```bash
-feishu-notify "任务完成：简短说明"
+CC_FEISHU_NOTIFY_CONFIRM=1 \
+CC_NOTIFY_SESSION='feishu:<chat-or-scope>:<user>' \
+<skill-dir>/scripts/feishu-notify "任务完成：简短说明"
 ```
 
 For long or multi-line messages:
 
 ```bash
-cat <<'EOF' | feishu-notify
+cat <<'EOF' | CC_FEISHU_NOTIFY_CONFIRM=1 \
+CC_NOTIFY_SESSION='feishu:<chat-or-scope>:<user>' \
+<skill-dir>/scripts/feishu-notify
 任务完成：简短标题
 
 - 结果：...
@@ -38,9 +50,9 @@ cat <<'EOF' | feishu-notify
 EOF
 ```
 
-If `feishu-notify` is not in `PATH`, use the deployed environment's configured
-notification script. Do not hardcode a machine-local fallback path in this skill
-package.
+If the deployed environment wants a shorter command, symlink the packaged script
+into a directory on `PATH`. Keep machine-local session keys in environment
+variables, not in this skill package.
 
 ## Message Style
 
