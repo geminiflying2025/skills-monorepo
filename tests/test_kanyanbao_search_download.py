@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import importlib.util
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -52,6 +53,34 @@ class ResolveOutputDirTests(unittest.TestCase):
             sync_dir,
             Path("/Volumes/资产-投资研究/研报下载/kanyanbao-2026-03-20_to_2026-03-26"),
         )
+
+    def test_sync_output_dir_mounts_network_volume_before_copy(self):
+        mod = load_module()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            output_dir = tmp / "kanyanbao-2026-03-20_to_2026-03-26"
+            output_dir.mkdir()
+            (output_dir / "sample.pdf").write_text("pdf", encoding="utf-8")
+
+            sync_root = tmp / "资产-投资研究" / "研报下载"
+            sync_dir = sync_root / output_dir.name
+
+            def fake_run(cmd, *args, **kwargs):
+                if cmd[:2] == ["security", "find-internet-password"]:
+                    return subprocess.CompletedProcess(cmd, 0, stdout="secret\n", stderr="")
+                sync_root.mkdir(parents=True, exist_ok=True)
+                return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+            with (
+                mock.patch.object(mod, "DEFAULT_OUTPUT_ROOT", sync_root),
+                mock.patch.object(mod.subprocess, "run", side_effect=fake_run) as run_mock,
+            ):
+                ok, error = mod.sync_output_dir(output_dir, sync_dir)
+
+            self.assertTrue(ok)
+            self.assertEqual(error, "")
+            self.assertTrue((sync_dir / "sample.pdf").exists())
+            self.assertEqual(run_mock.call_count, 2)
 
     def test_load_failed_manifest_items_returns_only_failed_rows(self):
         mod = load_module()

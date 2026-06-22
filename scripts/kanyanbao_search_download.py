@@ -29,6 +29,8 @@ DEFAULT_REFRESH_STATE_COMMAND = (
     "/Users/macmini/Projects/skills-monorepo/scripts/kanyanbao_refresh_state.sh"
 )
 DEFAULT_OUTPUT_ROOT = Path("/Volumes/资产-投资研究/研报下载")
+DEFAULT_SYNC_HOST = "10.168.20.10"
+DEFAULT_SYNC_ACCOUNT = "chenchen"
 LOCAL_OUTPUT_ROOT = Path("output")
 DEFAULT_COLUMNS = [
     "世界经济",
@@ -234,9 +236,57 @@ def resolve_sync_output_dir(output_dir: Path) -> Path:
     return DEFAULT_OUTPUT_ROOT / output_dir.name
 
 
+def mount_sync_volume(sync_root: Path) -> tuple[bool, str]:
+    volume_root = sync_root.parent
+    host = os.environ.get("KANYANBAO_SYNC_HOST", DEFAULT_SYNC_HOST)
+    account = os.environ.get("KANYANBAO_SYNC_ACCOUNT", DEFAULT_SYNC_ACCOUNT)
+    password = os.environ.get("KANYANBAO_SYNC_PASSWORD", "").strip()
+    if not password:
+        result = subprocess.run(
+            ["security", "find-internet-password", "-s", host, "-a", account, "-w"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            err = (result.stderr or result.stdout).strip()
+            return False, f"failed to load SMB password for {account}@{host}: {err or 'unknown error'}"
+        password = result.stdout.strip()
+    if not password:
+        return False, f"missing SMB password for {account}@{host}"
+
+    share_name = quote(volume_root.name, safe="")
+    smb_url = f"smb://{quote(account, safe='')}:{quote(password, safe='')}@{host}/{share_name}"
+    result = subprocess.run(
+        ["osascript", "-e", f'mount volume "{smb_url}"'],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        err = (result.stderr or result.stdout).strip()
+        return False, f"failed to mount sync volume {volume_root}: {err or 'unknown error'}"
+    return True, ""
+
+
+def ensure_sync_root_available(sync_root: Path) -> tuple[bool, str]:
+    if sync_root.exists():
+        return True, ""
+
+    volume_root = sync_root.parent
+    if not volume_root.exists():
+        ok, error = mount_sync_volume(sync_root)
+        if not ok:
+            return False, error
+
+    sync_root.mkdir(parents=True, exist_ok=True)
+    return True, ""
+
+
 def sync_output_dir(output_dir: Path, sync_dir: Path) -> tuple[bool, str]:
-    if not DEFAULT_OUTPUT_ROOT.exists():
-        return False, f"sync root is not available: {DEFAULT_OUTPUT_ROOT}"
+    ok, error = ensure_sync_root_available(DEFAULT_OUTPUT_ROOT)
+    if not ok:
+        return False, error
 
     sync_dir.mkdir(parents=True, exist_ok=True)
     for source in output_dir.iterdir():
