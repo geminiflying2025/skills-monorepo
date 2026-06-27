@@ -295,6 +295,140 @@ print(json.dumps({
         self.assertEqual(result["metadata"]["xiaohongshu_title"], "fake title")
         self.assertEqual(result["texts"][0]["label"], "xiaohongshu_direct")
 
+    def test_x_direct_reader_runs_for_x_posts(self) -> None:
+        mod = load_module()
+
+        with (
+            tempfile.TemporaryDirectory() as tmpdir,
+            mock.patch.object(mod, "process_x_direct", return_value=True) as x_reader,
+            mock.patch.object(mod, "process_media_url", return_value=False) as media_reader,
+            mock.patch.object(mod, "read_web_pipeline", return_value=False),
+        ):
+            result = mod.process_url(
+                "https://x.com/example/status/1234567890",
+                Path(tmpdir),
+                mod.Options(),
+            )
+
+        self.assertTrue(result["ok"])
+        x_reader.assert_called_once()
+        media_reader.assert_not_called()
+
+    def test_x_direct_reader_records_markdown_and_metadata(self) -> None:
+        mod = load_module()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            fake_script = tmp_path / "fake_x_read.py"
+            fake_script.write_text(
+                """
+import argparse, json
+from pathlib import Path
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--url')
+parser.add_argument('--output-dir')
+parser.add_argument('--timeout-seconds')
+args = parser.parse_args()
+out = Path(args.output_dir)
+out.mkdir(parents=True, exist_ok=True)
+md = out / 'x-read.md'
+js = out / 'x-read.json'
+raw = out / 'x-read-raw.json'
+md.write_text('# fake x\\n\\nbody', encoding='utf-8')
+js.write_text('{}', encoding='utf-8')
+raw.write_text('{}', encoding='utf-8')
+print(json.dumps({
+    'ok': True,
+    'source': 'xreach',
+    'url': args.url,
+    'tweet_id': '1234567890',
+    'author': 'example',
+    'markdown': str(md),
+    'json': str(js),
+    'raw': str(raw),
+}))
+""",
+                encoding="utf-8",
+            )
+            result = {
+                "metadata": {},
+                "texts": [],
+                "artifact_files": {},
+                "failures": [],
+            }
+
+            with mock.patch.object(mod, "find_x_direct_reader", return_value=fake_script):
+                ok = mod.process_x_direct(
+                    "https://x.com/example/status/1234567890",
+                    tmp_path,
+                    result,
+                    mod.Options(timeout_seconds=5),
+                )
+
+        self.assertTrue(ok)
+        self.assertEqual(result["metadata"]["x_source"], "xreach")
+        self.assertEqual(result["metadata"]["x_tweet_id"], "1234567890")
+        self.assertEqual(result["texts"][0]["label"], "x_direct")
+
+    def test_x_direct_reader_records_structured_failure_artifacts(self) -> None:
+        mod = load_module()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            fake_script = tmp_path / "fake_x_read_fail.py"
+            fake_script.write_text(
+                """
+import argparse, json, sys
+from pathlib import Path
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--url')
+parser.add_argument('--output-dir')
+parser.add_argument('--timeout-seconds')
+args = parser.parse_args()
+out = Path(args.output_dir)
+out.mkdir(parents=True, exist_ok=True)
+md = out / 'x-read.md'
+js = out / 'x-read.json'
+raw = out / 'x-read-raw.json'
+md.write_text('# failed x\\n', encoding='utf-8')
+js.write_text('{}', encoding='utf-8')
+raw.write_text('[]', encoding='utf-8')
+print(json.dumps({
+    'ok': False,
+    'source': 'xreach',
+    'url': args.url,
+    'tweet_id': '1234567890',
+    'markdown': str(md),
+    'json': str(js),
+    'raw': str(raw),
+    'failures': [{'error': 'xreach not found'}],
+}))
+sys.exit(2)
+""",
+                encoding="utf-8",
+            )
+            result = {
+                "metadata": {},
+                "texts": [],
+                "artifact_files": {},
+                "failures": [],
+            }
+
+            with mock.patch.object(mod, "find_x_direct_reader", return_value=fake_script):
+                ok = mod.process_x_direct(
+                    "https://x.com/example/status/1234567890",
+                    tmp_path,
+                    result,
+                    mod.Options(timeout_seconds=5),
+                )
+
+        self.assertFalse(ok)
+        self.assertEqual(len(result["artifact_files"]["x"]), 3)
+        self.assertEqual(result["failures"][0]["stage"], "x_direct")
+        self.assertIn("xreach not found", result["failures"][0]["error"])
+
 
 if __name__ == "__main__":
     unittest.main()

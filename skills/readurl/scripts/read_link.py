@@ -1053,6 +1053,83 @@ def process_xiaohongshu_direct(url: str, run_dir: Path, result: dict[str, Any], 
     return bool(payload.get("ok"))
 
 
+def find_x_direct_reader() -> Path | None:
+    candidates = [
+        Path(__file__).resolve().parents[2] / "wisdom-x-trends" / "scripts" / "x_read.py",
+        Path.home() / ".codex" / "skills" / "wisdom-x-trends" / "scripts" / "x_read.py",
+        Path.home() / ".openclaw" / "skills" / "wisdom-x-trends" / "scripts" / "x_read.py",
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def process_x_direct(url: str, run_dir: Path, result: dict[str, Any], options: Options) -> bool:
+    script = find_x_direct_reader()
+    if script is None:
+        add_failure(result, "x_direct", "wisdom-x-trends single-post reader script not found")
+        return False
+
+    output_dir = run_dir / "x-direct"
+    command = [
+        sys.executable,
+        str(script),
+        "--url",
+        url,
+        "--output-dir",
+        str(output_dir),
+        "--timeout-seconds",
+        str(max(30, int(options.timeout_seconds))),
+    ]
+    completed = run_command(command, timeout=max(90, options.timeout_seconds + 60))
+
+    payload: dict[str, Any] | None = None
+    try:
+        if completed.stdout.strip():
+            payload = json.loads(completed.stdout)
+    except Exception as exc:
+        add_failure(result, "x_direct", f"cannot parse x direct reader output: {exc}")
+        return False
+
+    if completed.returncode != 0:
+        if payload:
+            for key in ("json", "markdown", "raw"):
+                path_value = payload.get(key)
+                if path_value and Path(str(path_value)).exists():
+                    add_artifact(result, "x", Path(str(path_value)))
+            failures = payload.get("failures") or [{"error": "x direct reader failed"}]
+            for failure in failures[:3]:
+                add_failure(result, "x_direct", failure.get("error") if isinstance(failure, dict) else str(failure))
+        else:
+            add_failure(result, "x_direct", completed.stderr or completed.stdout or "x direct reader failed")
+        return False
+
+    if payload is None:
+        add_failure(result, "x_direct", "x direct reader returned empty output")
+        return False
+
+    for key, value in payload.items():
+        if key in {"url", "tweet_id", "author", "source"} and value:
+            result["metadata"][f"x_{key}"] = value
+
+    for key in ("json", "markdown", "raw"):
+        path_value = payload.get(key)
+        if not path_value:
+            continue
+        path = Path(str(path_value))
+        if path.exists():
+            add_artifact(result, "x", path)
+
+    markdown_path = Path(str(payload.get("markdown") or ""))
+    if markdown_path.exists():
+        text = markdown_path.read_text(encoding="utf-8")
+        add_text(result, "x_direct", text, "wisdom-x-trends", markdown_path)
+        return True
+
+    return bool(payload.get("ok"))
+
+
 def process_url(url: str, output_root: Path, options: Options) -> dict[str, Any]:
     run_dir = make_run_dir(output_root, url)
     classification = classify_url(url)
@@ -1081,7 +1158,9 @@ def process_url(url: str, output_root: Path, options: Options) -> dict[str, Any]
     if classification.kind in media_kinds:
         if classification.platform == "xiaohongshu":
             useful = process_xiaohongshu_direct(url, run_dir, result, options)
-        if not (classification.platform == "xiaohongshu" and useful):
+        if classification.platform == "x":
+            useful = process_x_direct(url, run_dir, result, options)
+        if not (classification.platform in {"xiaohongshu", "x"} and useful):
             useful = process_media_url(url, run_dir, result, options) or useful
             if classification.kind in {"social-post", "x-post"} or not useful:
                 useful = read_web_pipeline(

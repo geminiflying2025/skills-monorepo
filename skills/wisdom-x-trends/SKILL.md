@@ -80,6 +80,16 @@ python3 <skill-dir>/scripts/x_trends.py \
   --output-dir /abs/path/to/output/x-trends-replay
 ```
 
+读取单条 X/Twitter 帖子时使用同一套 `xreach` 登录态和解析逻辑：
+
+```bash
+python3 <skill-dir>/scripts/x_read.py \
+  --url "https://x.com/user/status/123" \
+  --output-dir /abs/path/to/output/x-read
+```
+
+`x_read.py` 会用帖子 URL 中的 handle / status id 组合搜索 query，调用 `xreach search ... --json`，再复用 `x_trends.py` 的 tweet 节点解析逻辑挑出匹配帖子。它不是网页爬虫；如果 `xreach` 缺失或未登录，要按前置检查修复。
+
 ## 4) 输出要求
 
 脚本输出四类产物：
@@ -90,6 +100,14 @@ python3 <skill-dir>/scripts/x_trends.py \
 - `x-trends-briefing.json`
 
 热点结果要是事件级，不是简单 tweet 列表。
+
+单条帖子读取输出三类产物：
+
+- `x-read-raw.json`
+- `x-read.json`
+- `x-read.md`
+
+其中 `x-read.md` 是给大模型总结的正文语料；`x-read.json` 保留作者、发布时间、互动数、URL 和原始 record。
 
 每个热点至少包含：
 

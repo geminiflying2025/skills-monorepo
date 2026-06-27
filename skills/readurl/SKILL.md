@@ -212,12 +212,23 @@ python3 <skill-dir>/scripts/read_link.py "<audio-url>" \
 
 ### X / Twitter 链接
 
-通用入口会先尝试 `yt-dlp` 抽媒体元数据/字幕，再回退到网页读取：
+通用入口会先调用 `wisdom-x-trends` 的单条读取器，复用它的 `xreach` 登录态和 `xreach search ... --json` 解析方案：
 
 ```bash
 python3 <skill-dir>/scripts/read_link.py "https://x.com/user/status/123" \
-  --cookies-from-browser chrome \
   --out-dir /abs/path/to/output/readurl
+```
+
+如果本机没有 `xreach`，或 `xreach` 未登录，`readurl` 会把 `x_direct` 失败写入 `failures.json`，再继续尝试 `yt-dlp` 和网页读取 fallback。修复登录态时按 `wisdom-x-trends` 的方式执行：
+
+```bash
+xreach auth extract --browser chrome
+```
+
+如果当前环境实际使用 `xfetch`，也可以执行：
+
+```bash
+xfetch auth extract --browser chrome
 ```
 
 如果任务是 X 热点聚合而非读取单条链接，改用 `wisdom-x-trends`。
