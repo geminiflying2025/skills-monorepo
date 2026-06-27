@@ -88,7 +88,7 @@ python3 <skill-dir>/scripts/x_read.py \
   --output-dir /abs/path/to/output/x-read
 ```
 
-`x_read.py` 会用帖子 URL 中的 handle / status id 组合搜索 query，调用 `xreach search ... --json`，再复用 `x_trends.py` 的 tweet 节点解析逻辑挑出匹配帖子。它不是网页爬虫；如果 `xreach` 缺失或未登录，要按前置检查修复。
+`x_read.py` 会先用 `xreach tweet <url-or-id> --json` 精确读取目标帖子；如果精确读取失败，再用帖子 URL 中的 handle / status id 组合搜索 query，调用 `xreach search ... --json` fallback，并复用 `x_trends.py` 的 tweet 节点解析逻辑挑出匹配帖子。fallback 不允许把非目标 status id 的搜索结果当成成功。它不是网页爬虫；如果 `xreach` 缺失或未登录，要按前置检查修复。
 
 ## 4) 输出要求
 

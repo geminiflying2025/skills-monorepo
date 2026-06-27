@@ -6,6 +6,7 @@ import argparse
 import importlib.util
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -74,6 +75,21 @@ def run_xreach_search(xreach_bin: str, query: str, search_type: str, count: int)
     return load_x_trends_module().run_xreach_search(xreach_bin, query, search_type, count)
 
 
+def run_xreach_tweet(xreach_bin: str, url_or_id: str) -> Any:
+    completed = subprocess.run(
+        [xreach_bin, "tweet", url_or_id, "--json"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if completed.returncode != 0:
+        raise RuntimeError((completed.stderr or completed.stdout or "xreach tweet failed").strip())
+    try:
+        return json.loads(completed.stdout)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"xreach tweet returned invalid json: {exc}") from exc
+
+
 def records_from_payload(payload: Any, query: str) -> list[Any]:
     x_trends = load_x_trends_module()
     records = []
@@ -82,6 +98,16 @@ def records_from_payload(payload: Any, query: str) -> list[Any]:
         if record is not None:
             records.append(record)
     return records
+
+
+def record_from_tweet_payload(payload: Any, query: str) -> Any | None:
+    if not isinstance(payload, dict):
+        return None
+    node = dict(payload)
+    user = node.get("user")
+    if isinstance(user, dict) and "screenName" in user and "username" not in user:
+        node["user"] = {**user, "username": user.get("screenName")}
+    return load_x_trends_module().parse_record("direct", query, node)
 
 
 def status_id_from_record(record: Any) -> str:
@@ -96,6 +122,7 @@ def pick_matching_record(records: list[Any], tweet_id: str | None) -> Any | None
         for record in records:
             if status_id_from_record(record) == tweet_id:
                 return record
+        return None
     return records[0] if records else None
 
 
@@ -123,9 +150,39 @@ def read_tweet(url: str, count: int = 8, search_type: str = "both") -> dict[str,
     xreach_bin = resolve_xreach_bin()
     check_xreach_auth_or_raise(xreach_bin)
 
-    search_types = ["top", "latest"] if search_type == "both" else [search_type]
     raw_searches = []
     failures: list[dict[str, str]] = []
+    direct_target = tweet_id or url
+    try:
+        payload = run_xreach_tweet(xreach_bin, direct_target)
+        raw_searches.append({"query": direct_target, "type": "tweet", "payload": payload})
+        record = record_from_tweet_payload(payload, str(direct_target))
+        if record is None:
+            failures.append({"query": str(direct_target), "type": "tweet", "error": "xreach tweet returned no parseable tweet"})
+        elif tweet_id and status_id_from_record(record) != tweet_id:
+            failures.append(
+                {
+                    "query": str(direct_target),
+                    "type": "tweet",
+                    "error": f"xreach tweet returned mismatched status id {status_id_from_record(record)}",
+                }
+            )
+        else:
+            return {
+                "ok": True,
+                "source": "xreach",
+                "url": record.url or url,
+                "tweet_id": record.tweet_id,
+                "author": record.author,
+                "record": record_to_dict(record),
+                "failures": failures,
+                "raw_searches": raw_searches,
+            }
+    except Exception as exc:
+        failures.append({"query": str(direct_target), "type": "tweet", "error": str(exc)})
+        raw_searches.append({"query": str(direct_target), "type": "tweet", "error": str(exc)})
+
+    search_types = ["top", "latest"] if search_type == "both" else [search_type]
     records = []
     for query in build_search_queries(url):
         for item_type in search_types:
