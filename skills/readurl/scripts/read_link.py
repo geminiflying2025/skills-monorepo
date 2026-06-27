@@ -992,6 +992,67 @@ def run_command(cmd: list[str], timeout: float) -> subprocess.CompletedProcess[s
     )
 
 
+def find_xiaohongshu_direct_reader() -> Path | None:
+    candidates = [
+        Path(__file__).resolve().parents[2] / "wisdom-xhs" / "scripts" / "xhs_direct_read.py",
+        Path.home() / ".codex" / "skills" / "wisdom-xhs" / "scripts" / "xhs_direct_read.py",
+        Path.home() / ".openclaw" / "skills" / "wisdom-xhs" / "scripts" / "xhs_direct_read.py",
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def process_xiaohongshu_direct(url: str, run_dir: Path, result: dict[str, Any], options: Options) -> bool:
+    script = find_xiaohongshu_direct_reader()
+    if script is None:
+        add_failure(result, "xiaohongshu_direct", "wisdom-xhs direct reader script not found")
+        return False
+
+    output_dir = run_dir / "xiaohongshu-direct"
+    command = [
+        sys.executable,
+        str(script),
+        "--url",
+        url,
+        "--output-dir",
+        str(output_dir),
+        "--timeout-seconds",
+        str(max(30, int(options.timeout_seconds))),
+    ]
+    completed = run_command(command, timeout=max(90, options.timeout_seconds + 60))
+    if completed.returncode != 0:
+        add_failure(result, "xiaohongshu_direct", completed.stderr or completed.stdout or "direct reader failed")
+        return False
+
+    try:
+        payload = json.loads(completed.stdout)
+    except Exception as exc:
+        add_failure(result, "xiaohongshu_direct", f"cannot parse direct reader output: {exc}")
+        return False
+
+    for key, value in payload.items():
+        if key in {"url", "title", "source", "media_type"} and value:
+            result["metadata"][f"xiaohongshu_{key}"] = value
+
+    for key in ("json", "markdown", "screenshot"):
+        path_value = payload.get(key)
+        if not path_value:
+            continue
+        path = Path(str(path_value))
+        if path.exists():
+            add_artifact(result, "xiaohongshu", path)
+
+    markdown_path = Path(str(payload.get("markdown") or ""))
+    if markdown_path.exists():
+        text = markdown_path.read_text(encoding="utf-8")
+        add_text(result, "xiaohongshu_direct", text, "wisdom-xhs", markdown_path)
+        return True
+
+    return bool(payload.get("ok"))
+
+
 def process_url(url: str, output_root: Path, options: Options) -> dict[str, Any]:
     run_dir = make_run_dir(output_root, url)
     classification = classify_url(url)
@@ -1018,17 +1079,20 @@ def process_url(url: str, output_root: Path, options: Options) -> dict[str, Any]
     useful = False
 
     if classification.kind in media_kinds:
-        useful = process_media_url(url, run_dir, result, options)
-        if classification.kind in {"social-post", "x-post"} or not useful:
-            useful = read_web_pipeline(
-                url,
-                run_dir,
-                result,
-                options,
-                force_images=classification.kind == "social-post",
-            ) or useful
-        if classification.platform == "bilibili" and not useful:
-            useful = process_bilibili_api_url(url, run_dir, result, options) or useful
+        if classification.platform == "xiaohongshu":
+            useful = process_xiaohongshu_direct(url, run_dir, result, options)
+        if not (classification.platform == "xiaohongshu" and useful):
+            useful = process_media_url(url, run_dir, result, options) or useful
+            if classification.kind in {"social-post", "x-post"} or not useful:
+                useful = read_web_pipeline(
+                    url,
+                    run_dir,
+                    result,
+                    options,
+                    force_images=classification.kind == "social-post",
+                ) or useful
+            if classification.platform == "bilibili" and not useful:
+                useful = process_bilibili_api_url(url, run_dir, result, options) or useful
     else:
         useful = read_web_pipeline(url, run_dir, result, options)
 

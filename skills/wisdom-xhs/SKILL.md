@@ -1,6 +1,6 @@
 ---
 name: wisdom-xhs
-description: Read and publish XiaoHongShu content through Agent Reach + mcporter + xiaohongshu-mcp. Use when tasks involve 小红书笔记读取、搜索、详情、评论、图文发布、视频发布、账号状态检查.
+description: Use when tasks involve 小红书笔记读取、搜索、详情、评论、图文发布、视频发布、账号状态检查.
 ---
 
 # XiaoHongShu Reader And Publisher
@@ -10,15 +10,16 @@ single workflow.
 
 This skill assumes the local stack is:
 
-- `agent-reach`
 - `mcporter`
-- Docker
-- `xiaohongshu-mcp`
+- `xiaohongshu-mcp-node` configured as mcporter server `xiaohongshu`
+- Python Playwright only for the QR login helper
 
-The runtime target is `mcporter` server name `xiaohongshu`.
+Older `agent-reach` / Docker / `xiaohongshu-mcp` setups can still work as a
+legacy fallback, but they are not the default for this machine.
 
 The helper scripts in this skill auto-detect the user-level `mcporter`
-configuration file, typically `~/config/mcporter.json`.
+configuration file, typically `~/.mcporter/mcporter.json` or
+`~/config/mcporter.json`.
 
 ## What This Skill Covers
 
@@ -50,10 +51,11 @@ python3 <skill-dir>/scripts/xhs_stack_status.py
 
 This prints JSON with:
 
-- `agent_reach_installed`
 - `mcporter_installed`
-- `docker_installed`
-- `docker_container_running`
+- `xiaohongshu_mcp_node_installed`
+- `domestic_xiaohongshu_mcp_configured`
+- `cookies_path`
+- `cookies_file_exists`
 - `mcporter_server_configured`
 - `mcp_connected`
 - `login_status`
@@ -76,27 +78,39 @@ python3 <skill-dir>/scripts/xhs_call.py get_feed_detail \
   --output /abs/path/to/output/xiaohongshu/feed-detail.json
 ```
 
+The wrapper accepts old snake_case arguments and maps them to the domestic MCP
+camelCase names (`feed_id` -> `feedId`, `xsec_token` -> `xsecToken`,
+`load_all_comments` -> `loadAllComments`). It also maps old tool names such as
+`publish_with_video` to `publish_video`.
+
 ## Login
 
-### Preferred: Cookie import through Agent Reach
+### Preferred: QR login with persistent wait
 
 ```bash
-agent-reach configure xhs-cookies "key1=value1; key2=value2; ..."
+python3 <skill-dir>/scripts/xhs_login_wait.py \
+  --qr-output /abs/path/to/output/xiaohongshu-login/qr.png \
+  --timeout-seconds 240
 ```
 
-Cookie source recommendation:
+This opens the XiaoHongShu login page, saves the QR image if requested, waits
+for the user to scan it, then writes Playwright cookies to:
 
-1. Log in to XiaoHongShu in your browser
-2. Use Cookie-Editor
-3. Export as Header String or JSON
-4. Pass it to the command above
+- `$COOKIES_PATH`, if set
+- otherwise `~/Library/Application Support/wisdom-xhs/cookies-node.json`
 
-### Fallback: QR login
+Do not print or commit cookie contents.
+
+### One-shot MCP QR is diagnostic only
 
 ```bash
 mcporter call xiaohongshu.get_login_qrcode
 mcporter call xiaohongshu.check_login_status
 ```
+
+For stdio MCP servers, this one-shot call can return a QR image and then exit
+before the background login wait saves cookies. Use `xhs_login_wait.py` when
+login persistence matters.
 
 ## Reading Commands
 
@@ -120,14 +134,41 @@ mcporter call xiaohongshu.search_feeds keyword=护肤
 
 Optional filters can be passed through the raw MCP interface when needed.
 
+### Direct Playwright fallback when MCP list/search times out
+
+If `list_feeds` or `search_feeds` times out but `check_login_status` is logged
+in, use the direct reader. It reuses the saved cookies, opens XiaoHongShu with
+Python Playwright, clicks a visible search card, and writes JSON + Markdown +
+screenshot artifacts.
+
+```bash
+python3 <skill-dir>/scripts/xhs_direct_read.py \
+  --search-keyword AI \
+  --search-index 0 \
+  --output-dir /abs/path/to/output/xiaohongshu
+```
+
+For a note URL that already includes `xsec_token`, or an `xhslink.com` short
+share URL:
+
+```bash
+python3 <skill-dir>/scripts/xhs_direct_read.py \
+  --url "http://xhslink.com/o/<share-id>" \
+  --output-dir /abs/path/to/output/xiaohongshu
+```
+
+The direct reader records `media_type` as `image`, `video`, or `unknown`, plus
+image URLs, video element URLs when exposed by the browser, focused text, and a
+page screenshot.
+
 ### Note detail
 
 Use `feed_id` and `xsec_token` returned by feed list or search:
 
 ```bash
 mcporter call xiaohongshu.get_feed_detail \
-  feed_id=<feed-id> \
-  xsec_token=<xsec-token>
+  feedId=<feed-id> \
+  xsecToken=<xsec-token>
 ```
 
 ### Main content summary (no comments) + image OCR
@@ -210,20 +251,16 @@ Load more comments when useful:
 
 ```bash
 mcporter call xiaohongshu.get_feed_detail \
-  feed_id=<feed-id> \
-  xsec_token=<xsec-token> \
-  load_all_comments=true \
-  limit=20 \
-  scroll_speed=normal
+  feedId=<feed-id> \
+  xsecToken=<xsec-token> \
+  loadAllComments=true
 ```
 
 ### User profile
 
-```bash
-mcporter call xiaohongshu.user_profile \
-  user_id=<user-id> \
-  xsec_token=<xsec-token>
-```
+The domestic `xiaohongshu-mcp-node` package currently does not expose a
+`user_profile` tool through mcporter. If an older server exposes it, call it
+through `xhs_call.py` and save the raw result.
 
 ## Publish Commands
 
@@ -245,7 +282,7 @@ Notes:
 ### Video post
 
 ```bash
-mcporter call xiaohongshu.publish_with_video \
+mcporter call xiaohongshu.publish_video \
   title="标题" \
   content="正文内容" \
   video=/abs/path/video.mp4 \
@@ -257,9 +294,9 @@ mcporter call xiaohongshu.publish_with_video \
 ### Comment
 
 ```bash
-mcporter call xiaohongshu.post_comment_to_feed \
-  feed_id=<feed-id> \
-  xsec_token=<xsec-token> \
+mcporter call xiaohongshu.post_comment \
+  feedId=<feed-id> \
+  xsecToken=<xsec-token> \
   content="评论内容"
 ```
 
@@ -267,14 +304,14 @@ mcporter call xiaohongshu.post_comment_to_feed \
 
 ```bash
 mcporter call xiaohongshu.like_feed \
-  feed_id=<feed-id> \
-  xsec_token=<xsec-token>
+  feedId=<feed-id> \
+  xsecToken=<xsec-token>
 ```
 
 ```bash
 mcporter call xiaohongshu.favorite_feed \
-  feed_id=<feed-id> \
-  xsec_token=<xsec-token>
+  feedId=<feed-id> \
+  xsecToken=<xsec-token>
 ```
 
 ## Output Convention

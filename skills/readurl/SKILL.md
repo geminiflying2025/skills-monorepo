@@ -195,7 +195,7 @@ python3 <skill-dir>/scripts/read_link.py "<xhs-url>" \
   --out-dir /abs/path/to/output/readurl
 ```
 
-如果当前环境已安装并配置 `wisdom-xhs`，小红书详情读取优先使用 `wisdom-xhs` 的 `xhs_summarize_main.py` / `xhs_summarize_video.py`；再把生成的正文、图片 OCR、音频转写结果纳入最终总结。
+如果当前环境已安装并配置 `wisdom-xhs`，小红书详情读取优先使用 `wisdom-xhs`。当前实现会先调用 `xhs_direct_read.py` 直接用 Python Playwright + 已保存 cookie 读取页面并产出 JSON/Markdown/截图；如需进一步处理，再使用 `xhs_summarize_main.py` / `xhs_summarize_video.py` 做图片 OCR 或视频音频转写。
 
 ### 音频链接 / 小宇宙
 

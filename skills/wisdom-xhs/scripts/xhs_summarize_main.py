@@ -14,6 +14,7 @@ import numpy as np
 import requests
 from PIL import Image
 from mcporter_utils import build_mcporter_command, build_mcporter_env
+from xhs_payload import extract_note_from_payload
 
 try:
     from rapidocr_onnxruntime import RapidOCR
@@ -41,22 +42,29 @@ def parse_args() -> argparse.Namespace:
 
 
 def run_mcp_get_feed_detail(feed_id: str, xsec_token: str) -> dict[str, Any] | None:
-    command = build_mcporter_command(
-        "call",
-        "xiaohongshu.get_feed_detail",
-        f"feed_id={feed_id}",
-        f"xsec_token={xsec_token}",
-    )
-    result = subprocess.run(command, capture_output=True, text=True, check=False, env=build_mcporter_env())
-    if result.returncode != 0:
-        return None
-    try:
-        payload = extract_json_from_text(result.stdout)
-    except Exception:
-        return None
-    if not isinstance(payload, dict):
-        return None
-    return payload
+    arg_sets = [
+        (f"feedId={feed_id}", f"xsecToken={xsec_token}"),
+        (f"feed_id={feed_id}", f"xsec_token={xsec_token}"),
+    ]
+    for feed_arg, token_arg in arg_sets:
+        command = build_mcporter_command(
+            "call",
+            "xiaohongshu.get_feed_detail",
+            feed_arg,
+            token_arg,
+            "--timeout",
+            "90000",
+        )
+        result = subprocess.run(command, capture_output=True, text=True, check=False, env=build_mcporter_env())
+        if result.returncode != 0:
+            continue
+        try:
+            payload = extract_json_from_text(result.stdout)
+        except Exception:
+            continue
+        if isinstance(payload, dict):
+            return payload
+    return None
 
 
 def extract_json_from_text(text: str) -> Any:
@@ -252,7 +260,7 @@ def main() -> int:
     if payload is None:
         payload = load_note_from_web(args.feed_id, args.xsec_token)
         source = "web_fallback"
-    note = ((payload.get("data") or {}).get("note") or {})
+    note = extract_note_from_payload(payload, feed_id=args.feed_id, xsec_token=args.xsec_token)
     if not note:
         raise RuntimeError("note data not found in response")
 

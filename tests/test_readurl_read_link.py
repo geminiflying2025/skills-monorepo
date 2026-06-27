@@ -219,6 +219,82 @@ class ReadLinkTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         fallback.assert_called_once()
 
+    def test_xiaohongshu_direct_reader_runs_for_xhs_posts(self) -> None:
+        mod = load_module()
+
+        with (
+            tempfile.TemporaryDirectory() as tmpdir,
+            mock.patch.object(mod, "process_xiaohongshu_direct", return_value=True) as direct_reader,
+            mock.patch.object(mod, "process_media_url", return_value=False) as media_reader,
+            mock.patch.object(mod, "read_web_pipeline", return_value=False),
+        ):
+            result = mod.process_url(
+                "https://www.xiaohongshu.com/explore/6a19804b0000000006022810?xsec_token=abc",
+                Path(tmpdir),
+                mod.Options(),
+            )
+
+        self.assertTrue(result["ok"])
+        direct_reader.assert_called_once()
+        media_reader.assert_not_called()
+
+    def test_xiaohongshu_direct_reader_records_media_type_metadata(self) -> None:
+        mod = load_module()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            fake_script = tmp_path / "fake_xhs_direct.py"
+            fake_script.write_text(
+                """
+import argparse, json
+from pathlib import Path
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--url')
+parser.add_argument('--output-dir')
+parser.add_argument('--timeout-seconds')
+args = parser.parse_args()
+out = Path(args.output_dir)
+out.mkdir(parents=True, exist_ok=True)
+md = out / 'feed-test.md'
+js = out / 'feed-test.json'
+shot = out / 'shot.png'
+md.write_text('# fake xhs\\n\\nbody', encoding='utf-8')
+js.write_text('{}', encoding='utf-8')
+shot.write_bytes(b'png')
+print(json.dumps({
+    'ok': True,
+    'source': 'direct_playwright',
+    'url': args.url,
+    'title': 'fake title',
+    'media_type': 'video',
+    'markdown': str(md),
+    'json': str(js),
+    'screenshot': str(shot),
+}))
+""",
+                encoding="utf-8",
+            )
+            result = {
+                "metadata": {},
+                "texts": [],
+                "artifact_files": {},
+                "failures": [],
+            }
+
+            with mock.patch.object(mod, "find_xiaohongshu_direct_reader", return_value=fake_script):
+                ok = mod.process_xiaohongshu_direct(
+                    "http://xhslink.com/o/example",
+                    tmp_path,
+                    result,
+                    mod.Options(timeout_seconds=5),
+                )
+
+        self.assertTrue(ok)
+        self.assertEqual(result["metadata"]["xiaohongshu_media_type"], "video")
+        self.assertEqual(result["metadata"]["xiaohongshu_title"], "fake title")
+        self.assertEqual(result["texts"][0]["label"], "xiaohongshu_direct")
+
 
 if __name__ == "__main__":
     unittest.main()

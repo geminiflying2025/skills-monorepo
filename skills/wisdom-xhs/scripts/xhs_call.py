@@ -10,6 +10,41 @@ from pathlib import Path
 from mcporter_utils import build_mcporter_command, build_mcporter_env
 
 
+TOOL_ALIASES = {
+    "publish_with_video": "publish_video",
+    "post_comment_to_feed": "post_comment",
+}
+
+ARG_ALIASES = {
+    "feed_id": "feedId",
+    "xsec_token": "xsecToken",
+    "load_all_comments": "loadAllComments",
+    "comment_id": "commentId",
+    "schedule_time": "scheduleTime",
+    "is_original": "isOriginal",
+    "sort_by": "sortBy",
+    "note_type": "noteType",
+    "publish_time": "publishTime",
+}
+
+
+def normalize_tool_name(tool: str) -> str:
+    return TOOL_ALIASES.get(tool, tool)
+
+
+def normalize_mcp_args(tool: str, raw_args: list[str]) -> list[str]:
+    _ = tool
+    normalized: list[str] = []
+    for arg in raw_args:
+        separator = "=" if "=" in arg else ":" if ":" in arg else None
+        if not separator:
+            normalized.append(arg)
+            continue
+        key, value = arg.split(separator, 1)
+        normalized.append(f"{ARG_ALIASES.get(key, key)}{separator}{value}")
+    return normalized
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Call xiaohongshu MCP tools through mcporter.")
     parser.add_argument("tool", help="Tool name under server 'xiaohongshu', for example search_feeds or publish_content")
@@ -28,7 +63,8 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    command = build_mcporter_command("call", f"xiaohongshu.{args.tool}", *args.arg)
+    tool = normalize_tool_name(args.tool)
+    command = build_mcporter_command("call", f"xiaohongshu.{tool}", *normalize_mcp_args(tool, args.arg))
     result = subprocess.run(command, capture_output=True, text=True, check=False, env=build_mcporter_env())
 
     stdout = result.stdout or ""
